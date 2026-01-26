@@ -1,11 +1,12 @@
 {
   "required": true,
   "package": "com.goodbird.mindofthecolony.mixin.impl",
-  "compatibilityLevel": "JAVA_17",
+  "compatibilityLevel": "JAVA_21",
   "refmap": "mindofthecolony.refmap.json",
   "mixins": [
     "MixinCitizenData",
-    "MixinCitizenManager"
+    "MixinCitizenManager",
+    "MixinEntityCitizen"
   ],
   "client": [
   ],

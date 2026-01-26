@@ -1,1 +1,19 @@
-include('libs')
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        maven { url = 'https://maven.neoforged.net/releases' }
+    }
+}
+
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '0.8.0'
+}
+
+// Include java-npc library as composite build
+includeBuild('../java-npc') {
+    dependencySubstitution {
+        substitute module('game.player2.npc:player2npc') using project(':')
+    }
+}
+
+rootProject.name = 'mindofthecolony'

@@ -1,15 +1,21 @@
 package com.goodbird.mindofthecolony.event;
 
-import com.goodbird.mindofthecolony.CitizenAIManager;
-import net.minecraftforge.event.ServerChatEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import com.goodbird.mindofthecolony.CitizenNpcManager;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.ServerChatEvent;
 
-@Mod.EventBusSubscriber(modid = "mindofthecolony")
+/**
+ * Handles player chat events and routes messages to nearby citizens.
+ */
+@EventBusSubscriber(modid = "mindofthecolony")
 public class ChatEventHandler {
 
     @SubscribeEvent
     public static void onServerChat(ServerChatEvent event) {
-        CitizenAIManager.getInstance().broadcastPlayerMessage(event.getPlayer(), event.getMessage().getString());
+        CitizenNpcManager.getInstance().broadcastPlayerMessage(
+            event.getPlayer(),
+            event.getMessage().getString()
+        );
     }
 }

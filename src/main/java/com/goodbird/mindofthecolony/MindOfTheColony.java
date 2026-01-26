@@ -1,27 +1,46 @@
 package com.goodbird.mindofthecolony;
 
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.event.server.ServerStoppingEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.ModContainer;
+import net.neoforged.fml.common.Mod;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.server.ServerStartedEvent;
+import net.neoforged.neoforge.event.server.ServerStoppingEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+/**
+ * Main mod class for Mind of the Colony.
+ * Brings your colonists to life with AI conversations.
+ */
 @Mod("mindofthecolony")
 public class MindOfTheColony {
-    public MindOfTheColony() {
-        MinecraftForge.EVENT_BUS.register(this);
+    private static final Logger LOGGER = LoggerFactory.getLogger(MindOfTheColony.class);
+
+    public MindOfTheColony(IEventBus modEventBus, ModContainer modContainer) {
+        // Register ourselves for server and other game events
+        NeoForge.EVENT_BUS.register(this);
+
+        LOGGER.info("Mind of the Colony initialized");
     }
 
     @SubscribeEvent
-    public void onServerTick(TickEvent.ServerTickEvent event) {
-        if (event.phase == TickEvent.Phase.END) {
-            CitizenAIManager.getInstance().onServerTick();
-        }
+    public void onServerStarted(ServerStartedEvent event) {
+        // Initialize the manager when server starts
+        CitizenNpcManager.getInstance().initialize();
+        LOGGER.info("Mind of the Colony ready - citizens can now chat!");
+    }
+
+    @SubscribeEvent
+    public void onServerTick(ServerTickEvent.Post event) {
+        CitizenNpcManager.getInstance().onServerTick();
     }
 
     @SubscribeEvent
     public void onServerStopping(ServerStoppingEvent event) {
-        System.out.println("Mind of the Colony is shutting down AI bridges.");
-        CitizenAIManager.getInstance().clearAllAIs();
+        LOGGER.info("Mind of the Colony is shutting down AI bridges.");
+        CitizenNpcManager.getInstance().clearAllAIs();
     }
 }

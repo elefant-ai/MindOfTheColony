@@ -1,31 +1,39 @@
-# eclipse
-bin
+# Eclipse
+bin/
 *.launch
-.settings
-.metadata
+.settings/
+.metadata/
 .classpath
 .project
 
-# idea
-out
+# IntelliJ IDEA
+out/
 *.ipr
 *.iws
 *.iml
-.idea
+.idea/
 
-# gradle
-build
-.gradle
-gradle
-gradlew
-gradlew.bat
-!build.gradle
+# Gradle
+build/
+.gradle/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
 
-# other
-eclipse
-run
-*.txt
-doc/
-docs/
-!src/*
+# NeoForge/Minecraft
+run/
+runs/
 logs/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Generated resources
+src/generated/
+
+# Local config
+*.local
+
+# Reference repos (cloned for development)
+minecolonies-reference/
