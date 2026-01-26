@@ -5,9 +5,7 @@ import com.goodbird.mindofthecolony.mixin.IExtendedCitizenData;
 import com.minecolonies.api.colony.ICitizenData;
 import game.player2.npc.Player2NpcLib;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.player.Player;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,6 +31,9 @@ public class CitizenNpcManager {
 
     // Maps npcId (UUID) -> citizenId for reverse lookup
     private final Map<UUID, Integer> npcToCitizen = new ConcurrentHashMap<>();
+
+    // Maps citizenId -> player currently chatting with that citizen
+    private final Map<Integer, ServerPlayer> activeConversations = new ConcurrentHashMap<>();
 
     // Game session ID - unique per server instance
     private String gameId;
@@ -123,42 +124,46 @@ public class CitizenNpcManager {
     }
 
     /**
-     * Broadcasts a player message to all nearby citizens.
+     * Starts a conversation between a player and a citizen.
+     * Only one player can chat with a citizen at a time.
      */
-    public void broadcastPlayerMessage(Player player, String message) {
-        bridges.values().forEach(bridge -> {
-            if (bridge.isReady() && bridge.isEntityNear(player, PLAYER_INPUT_CHAT_RADIUS)) {
-                bridge.sendPlayerMessage(player.getName().getString(), message);
-            }
-        });
+    public void startConversation(int citizenId, ServerPlayer player) {
+        ServerPlayer existing = activeConversations.get(citizenId);
+        if (existing != null && existing != player) {
+            LOGGER.debug("Player {} taking over conversation from {} with citizen {}",
+                player.getName().getString(), existing.getName().getString(), citizenId);
+        }
+        activeConversations.put(citizenId, player);
+        LOGGER.debug("Started conversation: {} <-> citizen {}",
+            player.getName().getString(), citizenId);
     }
 
     /**
-     * Broadcasts a citizen's speech to nearby players and other citizens.
+     * Ends a conversation with a citizen.
      */
-    public void broadcastCitizenMessage(CitizenNpcBridge sender, String message) {
-        ICitizenData citizenData = sender.getCitizenData();
-        if (citizenData.getEntity().isEmpty()) return;
+    public void endConversation(int citizenId) {
+        ServerPlayer removed = activeConversations.remove(citizenId);
+        if (removed != null) {
+            LOGGER.debug("Ended conversation: {} <-> citizen {}",
+                removed.getName().getString(), citizenId);
+        }
+    }
 
-        var senderEntity = citizenData.getEntity().get();
+    /**
+     * Gets the player currently chatting with a citizen.
+     * @return The player, or null if no one is chatting with this citizen.
+     */
+    @Nullable
+    public ServerPlayer getChattingPlayer(int citizenId) {
+        return activeConversations.get(citizenId);
+    }
 
-        // Send to nearby players
-        senderEntity.level().getEntitiesOfClass(ServerPlayer.class,
-            senderEntity.getBoundingBox().inflate(LISTEN_CHAT_RADIUS)
-        ).forEach(player -> {
-            player.sendSystemMessage(Component.literal("<" + citizenData.getName() + "> " + message));
-        });
-
-        // Notify other nearby citizens
-        bridges.values().forEach(bridge -> {
-            if (bridge != sender && bridge.isReady()) {
-                var otherEntity = bridge.getCitizenData().getEntity();
-                if (otherEntity.isPresent() &&
-                    otherEntity.get().distanceToSqr(senderEntity) < LISTEN_CHAT_RADIUS * LISTEN_CHAT_RADIUS) {
-                    bridge.addHeardMessage(citizenData.getName(), message);
-                }
-            }
-        });
+    /**
+     * Gets the citizen ID for a given NPC UUID.
+     */
+    @Nullable
+    public Integer getCitizenIdByNpcId(UUID npcId) {
+        return npcToCitizen.get(npcId);
     }
 
     /**

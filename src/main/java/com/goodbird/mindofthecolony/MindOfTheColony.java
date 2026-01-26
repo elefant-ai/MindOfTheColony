@@ -1,5 +1,6 @@
 package com.goodbird.mindofthecolony;
 
+import com.goodbird.mindofthecolony.network.ModNetworking;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModContainer;
@@ -20,6 +21,9 @@ public class MindOfTheColony {
     private static final Logger LOGGER = LoggerFactory.getLogger(MindOfTheColony.class);
 
     public MindOfTheColony(IEventBus modEventBus, ModContainer modContainer) {
+        // Register network message handlers
+        modEventBus.register(ModNetworking.class);
+
         // Register ourselves for server and other game events
         NeoForge.EVENT_BUS.register(this);
 

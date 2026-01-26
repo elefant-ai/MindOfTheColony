@@ -2,12 +2,15 @@ package com.goodbird.mindofthecolony.event;
 
 import com.goodbird.mindofthecolony.CitizenNpcManager;
 import com.goodbird.mindofthecolony.bridge.CitizenNpcBridge;
+import com.goodbird.mindofthecolony.network.AIChatResponseMessage;
 import game.player2.npc.event.NpcCommandEvent;
 import game.player2.npc.event.NpcConnectionEvent;
 import game.player2.npc.event.NpcErrorEvent;
 import game.player2.npc.event.NpcMessageEvent;
+import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.network.PacketDistributor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,7 +24,7 @@ public class NpcEventHandler {
 
     /**
      * Handles text messages from NPCs.
-     * Broadcasts the citizen's speech to nearby players.
+     * Sends the response to the player currently chatting with the citizen.
      */
     @SubscribeEvent
     public static void onNpcMessage(NpcMessageEvent event) {
@@ -36,10 +39,24 @@ public class NpcEventHandler {
             return;
         }
 
-        // Broadcast the citizen's message to nearby players and other citizens
-        CitizenNpcManager.getInstance().broadcastCitizenMessage(bridge, message);
+        int citizenId = bridge.getCitizenData().getId();
+        String citizenName = bridge.getCitizenData().getName();
 
-        LOGGER.debug("Citizen {} said: {}", bridge.getCitizenData().getName(), message);
+        // Find the player chatting with this citizen
+        ServerPlayer chattingPlayer = CitizenNpcManager.getInstance().getChattingPlayer(citizenId);
+        if (chattingPlayer != null) {
+            // Send targeted response to the player's GUI
+            PacketDistributor.sendToPlayer(chattingPlayer, new AIChatResponseMessage(
+                citizenId,
+                citizenName,
+                message
+            ));
+            LOGGER.debug("Sent response from {} to player {}: {}",
+                citizenName, chattingPlayer.getName().getString(), message);
+        } else {
+            LOGGER.debug("No player chatting with citizen {} - message ignored: {}",
+                citizenName, message);
+        }
     }
 
     /**

@@ -5,10 +5,10 @@
   "refmap": "mindofthecolony.refmap.json",
   "mixins": [
     "MixinCitizenData",
-    "MixinCitizenManager",
-    "MixinEntityCitizen"
+    "MixinCitizenManager"
   ],
   "client": [
+    "MixinMainWindowCitizen"
   ],
   "minVersion": "0.8"
 }
