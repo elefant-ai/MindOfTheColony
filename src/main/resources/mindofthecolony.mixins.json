@@ -1,8 +1,11 @@
 {
   "required": true,
-  "package": "com.goodbird.mindofthecolony.mixin",
+  "package": "com.goodbird.mindofthecolony.mixin.impl",
   "compatibilityLevel": "JAVA_21",
-  "mixins": [],
+  "mixins": [
+    "MixinCitizenData",
+    "MixinCitizenManager"
+  ],
   "injectors": {
     "defaultRequire": 1
   },

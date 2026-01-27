@@ -26,6 +26,8 @@ import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
+import net.neoforged.neoforge.event.server.ServerStoppingEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import net.neoforged.neoforge.registries.DeferredBlock;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredItem;
@@ -113,5 +115,16 @@ public class MindOfTheColony {
     public void onServerStarting(ServerStartingEvent event) {
         // Do something when the server starts
         LOGGER.info("HELLO from server starting");
+    }
+
+    @SubscribeEvent
+    public void onServerTick(ServerTickEvent.Post event) {
+        CitizenAIManager.getInstance().onServerTick();
+    }
+
+    @SubscribeEvent
+    public void onServerStopping(ServerStoppingEvent event) {
+        LOGGER.info("Mind of the Colony is shutting down AI bridges.");
+        CitizenAIManager.getInstance().clearAllAIs();
     }
 }
