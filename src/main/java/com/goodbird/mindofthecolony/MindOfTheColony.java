@@ -1,6 +1,8 @@
 package com.goodbird.mindofthecolony;
 
+import com.goodbird.mindofthecolony.event.NpcEventHandler;
 import com.goodbird.mindofthecolony.network.ModNetworking;
+import game.player2.npc.Player2NpcLib;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModContainer;
@@ -32,6 +34,10 @@ public class MindOfTheColony {
 
     @SubscribeEvent
     public void onServerStarted(ServerStartedEvent event) {
+        // Initialize java-npc library and register event listener
+        Player2NpcLib.initialize();
+        Player2NpcLib.addListener(new NpcEventHandler());
+
         // Initialize the manager when server starts
         CitizenNpcManager.getInstance().initialize();
         LOGGER.info("Mind of the Colony ready - citizens can now chat!");

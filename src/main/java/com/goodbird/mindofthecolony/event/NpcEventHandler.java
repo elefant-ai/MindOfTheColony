@@ -7,9 +7,8 @@ import game.player2.npc.event.NpcCommandEvent;
 import game.player2.npc.event.NpcConnectionEvent;
 import game.player2.npc.event.NpcErrorEvent;
 import game.player2.npc.event.NpcMessageEvent;
+import game.player2.npc.event.Player2EventListener;
 import net.minecraft.server.level.ServerPlayer;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,25 +17,20 @@ import org.slf4j.LoggerFactory;
  * Handles events from the java-npc library.
  * Routes NPC responses back to the appropriate citizens and players.
  */
-@EventBusSubscriber(modid = "mindofthecolony")
-public class NpcEventHandler {
+public class NpcEventHandler implements Player2EventListener {
     private static final Logger LOGGER = LoggerFactory.getLogger(NpcEventHandler.class);
 
-    /**
-     * Handles text messages from NPCs.
-     * Sends the response to the player currently chatting with the citizen.
-     */
-    @SubscribeEvent
-    public static void onNpcMessage(NpcMessageEvent event) {
+    @Override
+    public boolean onMessageEvent(NpcMessageEvent event) {
         CitizenNpcBridge bridge = CitizenNpcManager.getInstance().getBridgeByNpcId(event.getNpcId());
         if (bridge == null) {
             LOGGER.debug("Received message for unknown NPC: {}", event.getNpcId());
-            return;
+            return false;
         }
 
         String message = event.getMessage();
         if (message == null || message.isEmpty()) {
-            return;
+            return false;
         }
 
         int citizenId = bridge.getCitizenData().getId();
@@ -57,42 +51,35 @@ public class NpcEventHandler {
             LOGGER.debug("No player chatting with citizen {} - message ignored: {}",
                 citizenName, message);
         }
+
+        return false;
     }
 
-    /**
-     * Handles command invocations from NPCs.
-     * Currently not used but could handle emotes, gestures, etc.
-     */
-    @SubscribeEvent
-    public static void onNpcCommand(NpcCommandEvent event) {
+    @Override
+    public boolean onCommandEvent(NpcCommandEvent event) {
         CitizenNpcBridge bridge = CitizenNpcManager.getInstance().getBridgeByNpcId(event.getNpcId());
         if (bridge == null) {
-            return;
+            return false;
         }
 
         String commandName = event.getCommandName();
         LOGGER.debug("Citizen {} invoked command: {}", bridge.getCitizenData().getName(), commandName);
 
-        // Handle specific commands if needed
-        // For example: emotes, gestures, looking at things, etc.
         switch (commandName) {
             case "emote" -> {
-                // Could trigger citizen animations
                 String emote = event.getStringArgument("emote");
                 LOGGER.debug("Citizen {} emotes: {}", bridge.getCitizenData().getName(), emote);
             }
             case "minecraft_command" -> {
-                // Currently not enabling command execution for citizens
                 LOGGER.debug("Citizen tried to execute command (disabled)");
             }
         }
+
+        return false;
     }
 
-    /**
-     * Handles connection status changes.
-     */
-    @SubscribeEvent
-    public static void onNpcConnection(NpcConnectionEvent event) {
+    @Override
+    public void onConnectionEvent(NpcConnectionEvent event) {
         switch (event.getStatus()) {
             case CONNECTED -> LOGGER.info("Connected to Player2 API for game: {}", event.getGameId());
             case DISCONNECTED -> LOGGER.warn("Disconnected from Player2 API: {}", event.getMessage());
@@ -101,23 +88,18 @@ public class NpcEventHandler {
         }
     }
 
-    /**
-     * Handles errors from the NPC system.
-     */
-    @SubscribeEvent
-    public static void onNpcError(NpcErrorEvent event) {
+    @Override
+    public void onErrorEvent(NpcErrorEvent event) {
         LOGGER.error("NPC error [{}]: {}", event.getType(), event.getMessage());
 
         if (event.getCause() != null) {
             LOGGER.error("Caused by:", event.getCause());
         }
 
-        // Handle specific error types
         switch (event.getType()) {
             case AUTH_ERROR -> LOGGER.error("Authentication failed - check your Player2 API key");
             case INSUFFICIENT_CREDITS -> LOGGER.warn("Insufficient credits/joules for NPC operation");
             case NPC_NOT_FOUND -> {
-                // NPC might have been cleaned up, remove from registry
                 if (event.getNpcId() != null) {
                     CitizenNpcBridge bridge = CitizenNpcManager.getInstance().getBridgeByNpcId(event.getNpcId());
                     if (bridge != null) {
@@ -125,9 +107,7 @@ public class NpcEventHandler {
                     }
                 }
             }
-            default -> {
-                // Log other errors for debugging
-            }
+            default -> {}
         }
     }
 }

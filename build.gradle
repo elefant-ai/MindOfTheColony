@@ -60,8 +60,14 @@ dependencies {
     compileOnly 'org.spongepowered:mixin:0.8.7'
     annotationProcessor 'org.spongepowered:mixin:0.8.7:processor'
 
-    // java-npc library (via composite build)
+    // java-npc library (via composite build, embedded via jarJar for runtime)
     implementation 'game.player2.npc:player2npc:1.0.0'
+    jarJar('game.player2.npc:player2npc') {
+        version {
+            strictly '[1.0.0,2.0.0)'
+            prefer '1.0.0'
+        }
+    }
 
     // MineColonies and dependencies
     compileOnly "com.ldtteam:minecolonies:${minecolonies_version}"
