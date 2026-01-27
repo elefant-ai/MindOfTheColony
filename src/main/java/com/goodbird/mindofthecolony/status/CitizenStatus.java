@@ -29,7 +29,8 @@ public class CitizenStatus extends ObjectStatus {
             status.add("sickness", data.getEntity().get().getCitizenData().getCitizenDiseaseHandler().getDisease().name().getString());
         }
 
-        status.add("status_key", data.getStatus().getTranslationKey());
+        var citizenStatus = data.getStatus();
+        status.add("status_key", citizenStatus != null ? citizenStatus.getTranslationKey() : "unknown");
         status.add("is_asleep", String.valueOf(data.isAsleep()));
         status.add("is_mourning", String.valueOf(data.getCitizenMournHandler().isMourning()));
         status.add("location", MinecoloniesStatusUtils.formatBlockPos(data.getLastPosition()));
