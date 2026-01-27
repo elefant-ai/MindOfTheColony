@@ -88,6 +88,15 @@ public class ChatWindowCitizen extends BOWindow implements ButtonHandler {
     }
 
     @Override
+    public boolean onKeyTyped(final char ch, final int key) {
+        if (key == org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER) {
+            sendMessage();
+            return true;
+        }
+        return super.onKeyTyped(ch, key);
+    }
+
+    @Override
     public void onButtonClicked(@NotNull Button button) {
         switch (button.getID()) {
             case CHAT_SEND_ID -> sendMessage();
