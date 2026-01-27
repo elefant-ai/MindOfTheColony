@@ -1,13 +1,1 @@
-{
-  "itemGroup.mindofthecolony": "Example Mod Tab",
-  "block.mindofthecolony.example_block": "Example Block",
-  "item.mindofthecolony.example_item": "Example Item",
-
-  "mindofthecolony.configuration.title": "MindOfTheColony Configs",
-  "mindofthecolony.configuration.section.mindofthecolony.common.toml": "MindOfTheColony Configs",
-  "mindofthecolony.configuration.section.mindofthecolony.common.toml.title": "MindOfTheColony Configs",
-  "mindofthecolony.configuration.items": "Item List",
-  "mindofthecolony.configuration.logDirtBlock": "Log Dirt Block",
-  "mindofthecolony.configuration.magicNumberIntroduction": "Magic Number Text",
-  "mindofthecolony.configuration.magicNumber": "Magic Number"
-}
+{}

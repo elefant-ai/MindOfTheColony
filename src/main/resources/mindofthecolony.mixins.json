@@ -2,14 +2,13 @@
   "required": true,
   "package": "com.goodbird.mindofthecolony.mixin.impl",
   "compatibilityLevel": "JAVA_21",
+  "refmap": "mindofthecolony.refmap.json",
   "mixins": [
     "MixinCitizenData",
     "MixinCitizenManager"
   ],
-  "injectors": {
-    "defaultRequire": 1
-  },
-  "overwrites": {
-    "requireAnnotations": true
-  }
+  "client": [
+    "MixinMainWindowCitizen"
+  ],
+  "minVersion": "0.8"
 }
