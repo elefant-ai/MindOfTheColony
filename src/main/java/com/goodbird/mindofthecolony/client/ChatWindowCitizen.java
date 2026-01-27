@@ -6,6 +6,7 @@ import com.ldtteam.blockui.controls.ButtonHandler;
 import com.ldtteam.blockui.controls.Text;
 import com.ldtteam.blockui.controls.TextField;
 import com.ldtteam.blockui.views.BOWindow;
+import com.ldtteam.blockui.views.ScrollingGroup;
 import com.minecolonies.api.colony.ICitizenDataView;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
@@ -36,6 +37,7 @@ public class ChatWindowCitizen extends BOWindow implements ButtonHandler {
     private final ICitizenDataView citizen;
     private final Consumer<ClientChatHandler.ChatEntry> messageListener = this::onMessageReceived;
     private Text chatHistoryText;
+    private ScrollingGroup chatScroll;
     private int lastHistorySize = 0;
 
     public ChatWindowCitizen(ICitizenDataView citizen) {
@@ -65,8 +67,9 @@ public class ChatWindowCitizen extends BOWindow implements ButtonHandler {
         // Register for message updates
         ClientChatHandler.addMessageListener(messageListener);
 
-        // Set up the chat history text
+        // Set up the chat history text and scroll container
         chatHistoryText = findPaneOfTypeByID(CHAT_HISTORY_ID, Text.class);
+        chatScroll = findPaneOfTypeByID("chatScroll", ScrollingGroup.class);
         LOGGER.debug("Chat window opened, chatHistoryText={}", chatHistoryText);
         updateChatHistory();
     }
@@ -155,6 +158,22 @@ public class ChatWindowCitizen extends BOWindow implements ButtonHandler {
             sb.append(prefix).append(": ").append(entry.message());
         }
 
-        chatHistoryText.setText(Component.literal(sb.toString()));
+        String text = sb.toString();
+        chatHistoryText.setText(Component.literal(text));
+
+        // Estimate actual text height since getRenderedTextHeight() is lazy (computed on draw)
+        float textScale = 0.8f;
+        int textWidth = chatHistoryText.getWidth();
+        int scaledWidth = (int) (textWidth / textScale);
+        var font = Minecraft.getInstance().font;
+        var lines = font.split(Component.literal(text), scaledWidth);
+        int estimatedHeight = (int) ((lines.size() * font.lineHeight + 8) * textScale);
+        chatHistoryText.setSize(textWidth, Math.max(12, estimatedHeight));
+
+        // Recompute scroll content height after resize, then scroll to bottom
+        if (chatScroll != null) {
+            chatScroll.getContainer().computeContentHeight();
+            chatScroll.setScrollY(chatScroll.getContentHeight());
+        }
     }
 }

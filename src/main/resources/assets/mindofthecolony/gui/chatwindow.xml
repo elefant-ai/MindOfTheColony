@@ -8,8 +8,10 @@
     <!-- Title -->
     <text id="title" size="240 12" pos="20 16" color="black" textalign="MIDDLE"/>
 
-    <!-- Chat history area -->
-    <text id="chatHistory" size="240 152" pos="20 34" color="black" wrap="true" textscale="0.8" textalign="TOP_LEFT"/>
+    <!-- Chat history area (scrollable) -->
+    <scrollgroup id="chatScroll" size="245 152" pos="20 34">
+        <text id="chatHistory" size="227 10000" pos="4 4" color="black" wrap="true" textscale="0.8" textalign="TOP_LEFT"/>
+    </scrollgroup>
 
     <!-- Input field -->
     <input id="chatInput" size="185 16" pos="20 194" maxlength="200"/>
