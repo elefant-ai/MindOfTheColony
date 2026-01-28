@@ -27,5 +27,19 @@ public class ModNetworking {
             AIChatResponseMessage.STREAM_CODEC,
             AIChatResponseMessage::handle
         );
+
+        // Client -> Server: Request background data for a citizen
+        registrar.playToServer(
+            BackgroundRequestMessage.TYPE,
+            BackgroundRequestMessage.STREAM_CODEC,
+            BackgroundRequestMessage::handle
+        );
+
+        // Server -> Client: Background data response
+        registrar.playToClient(
+            BackgroundResponseMessage.TYPE,
+            BackgroundResponseMessage.STREAM_CODEC,
+            BackgroundResponseMessage::handle
+        );
     }
 }
