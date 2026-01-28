@@ -1,6 +1,8 @@
 package com.goodbird.mindofthecolony.bridge;
 
 import com.goodbird.mindofthecolony.CitizenNpcManager;
+import com.goodbird.mindofthecolony.background.CitizenBackground;
+import com.goodbird.mindofthecolony.mixin.IExtendedCitizenData;
 import com.goodbird.mindofthecolony.status.AgentStatus;
 import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.jobs.IJob;
@@ -74,6 +76,14 @@ public class CitizenNpcBridge {
         String age = citizenData.isChild() ? "Child" : "Adult";
         double happiness = citizenData.getCitizenHappinessHandler().getHappiness(citizenData.getColony(), citizenData);
 
+        String backgroundSection = "";
+        if (citizenData instanceof IExtendedCitizenData extData) {
+            CitizenBackground bg = extData.getCitizenBackground();
+            if (bg != null && bg.isInitialized()) {
+                backgroundSection = bg.toSystemPromptSection();
+            }
+        }
+
         return """
             You are %s, a %s living in the colony of %s in the world of Minecraft.
 
@@ -83,10 +93,13 @@ public class CitizenNpcBridge {
             - Current mood: %s
             - Happiness level: %.1f/10
 
+            %s
+
             GUIDELINES:
             - Speak naturally in first person as this character
             - Reference your job, colony life, and current situation when relevant
             - React to your happiness and mood appropriately
+            - Your background and any dark history should subtly influence your speech and attitudes
             - Keep responses conversational and concise (under 200 characters)
             - You can express opinions about colony management and other citizens
             - If the player asks for another colonist by name, politely redirect them
@@ -101,7 +114,8 @@ public class CitizenNpcBridge {
                 gender,
                 age,
                 getMoodDescription(happiness),
-                happiness
+                happiness,
+                backgroundSection
             );
     }
 
@@ -111,12 +125,22 @@ public class CitizenNpcBridge {
     private String generateCharacterDescription() {
         IJob<?> job = citizenData.getJob();
         String jobName = (job != null) ? job.getJobRegistryEntry().getKey().getPath() : "unemployed";
-        return String.format("A %s %s named %s from the colony of %s. Currently feeling %s.",
+
+        String traitDesc = "";
+        if (citizenData instanceof IExtendedCitizenData extData) {
+            CitizenBackground bg = extData.getCitizenBackground();
+            if (bg != null && bg.getPersonalityTrait() != null) {
+                traitDesc = " Known for being " + bg.getPersonalityTrait().replace("_", " ") + ".";
+            }
+        }
+
+        return String.format("A %s %s named %s from the colony of %s. Currently feeling %s.%s",
             citizenData.isFemale() ? "female" : "male",
             jobName,
             citizenData.getName(),
             citizenData.getColony().getName(),
-            getMoodDescription(citizenData.getCitizenHappinessHandler().getHappiness(citizenData.getColony(), citizenData))
+            getMoodDescription(citizenData.getCitizenHappinessHandler().getHappiness(citizenData.getColony(), citizenData)),
+            traitDesc
         );
     }
 

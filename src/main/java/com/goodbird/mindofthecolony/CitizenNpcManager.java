@@ -1,5 +1,7 @@
 package com.goodbird.mindofthecolony;
 
+import com.goodbird.mindofthecolony.background.BackgroundGenerator;
+import com.goodbird.mindofthecolony.background.CitizenBackground;
 import com.goodbird.mindofthecolony.bridge.CitizenNpcBridge;
 import com.goodbird.mindofthecolony.mixin.IExtendedCitizenData;
 import com.minecolonies.api.colony.ICitizenData;
@@ -65,6 +67,18 @@ public class CitizenNpcManager {
 
         if (gameId == null) {
             initialize();
+        }
+
+        // Generate background if this citizen doesn't have one yet
+        if (citizenData instanceof IExtendedCitizenData extData) {
+            CitizenBackground bg = extData.getCitizenBackground();
+            if (bg == null || !bg.isInitialized()) {
+                CitizenBackground background = BackgroundGenerator.generate();
+                extData.setCitizenBackground(background);
+                LOGGER.info("Generated background for citizen {}: origin={}, personality={}, penalties={}",
+                    citizenData.getName(), background.getOrigin(),
+                    background.getPersonalityTrait(), background.getPenalties());
+            }
         }
 
         // Get any saved conversation history NBT
