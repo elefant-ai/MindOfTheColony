@@ -92,18 +92,18 @@ public class CitizenBackground {
     public String toSystemPromptSection() {
         StringBuilder sb = new StringBuilder("BACKGROUND:\n");
 
-        BackgroundDefinitions.ORIGINS.stream()
+        BackgroundDefinitions.getOrigins().stream()
             .filter(e -> e.id().equals(origin))
             .findFirst()
             .ifPresent(e -> sb.append("- Origin: ").append(e.displayText()).append("\n"));
 
-        BackgroundDefinitions.PERSONALITY_TRAITS.stream()
+        BackgroundDefinitions.getPersonalityTraits().stream()
             .filter(e -> e.id().equals(personalityTrait))
             .findFirst()
             .ifPresent(e -> sb.append("- Personality: ").append(e.displayText()).append("\n"));
 
         for (String penaltyId : penalties) {
-            BackgroundDefinitions.PENALTIES.stream()
+            BackgroundDefinitions.getPenalties().stream()
                 .filter(e -> e.id().equals(penaltyId))
                 .findFirst()
                 .ifPresent(e -> {

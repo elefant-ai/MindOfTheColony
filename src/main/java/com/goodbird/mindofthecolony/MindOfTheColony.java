@@ -1,5 +1,7 @@
 package com.goodbird.mindofthecolony;
 
+import com.goodbird.mindofthecolony.config.BackgroundConfigLoader;
+import com.goodbird.mindofthecolony.config.ModSettings;
 import com.goodbird.mindofthecolony.event.NpcEventHandler;
 import com.goodbird.mindofthecolony.network.ModNetworking;
 import game.player2.npc.Player2NpcLib;
@@ -7,6 +9,7 @@ import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.config.ModConfig;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
@@ -29,11 +32,17 @@ public class MindOfTheColony {
         // Register ourselves for server and other game events
         NeoForge.EVENT_BUS.register(this);
 
+        // Register TOML config
+        modContainer.registerConfig(ModConfig.Type.COMMON, ModSettings.SPEC, "mindofthecolony/settings.toml");
+
         LOGGER.info("Mind of the Colony initialized");
     }
 
     @SubscribeEvent
     public void onServerStarted(ServerStartedEvent event) {
+        // Load background definitions from JSON config
+        BackgroundConfigLoader.loadOrCreate();
+
         // Initialize java-npc library and register event listener
         Player2NpcLib.initialize();
         Player2NpcLib.addListener(new NpcEventHandler());

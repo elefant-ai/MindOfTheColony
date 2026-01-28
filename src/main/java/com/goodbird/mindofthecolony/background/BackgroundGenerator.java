@@ -1,5 +1,8 @@
 package com.goodbird.mindofthecolony.background;
 
+import com.goodbird.mindofthecolony.config.ModSettings;
+
+import java.util.List;
 import java.util.Random;
 
 /**
@@ -10,32 +13,34 @@ public final class BackgroundGenerator {
 
     private static final Random RANDOM = new Random();
 
-    private static final double PENALTY_CHANCE = 0.6;
-    private static final double SECOND_PENALTY_CHANCE = 0.3;
-
     private BackgroundGenerator() {}
 
     public static CitizenBackground generate() {
         CitizenBackground bg = new CitizenBackground();
 
-        BackgroundDefinitions.BackgroundEntry origin =
-            BackgroundDefinitions.ORIGINS.get(RANDOM.nextInt(BackgroundDefinitions.ORIGINS.size()));
+        List<BackgroundDefinitions.BackgroundEntry> origins = BackgroundDefinitions.getOrigins();
+        List<BackgroundDefinitions.BackgroundEntry> traits = BackgroundDefinitions.getPersonalityTraits();
+        List<BackgroundDefinitions.PenaltyEntry> penalties = BackgroundDefinitions.getPenalties();
+
+        BackgroundDefinitions.BackgroundEntry origin = origins.get(RANDOM.nextInt(origins.size()));
         bg.setOrigin(origin.id());
 
-        BackgroundDefinitions.BackgroundEntry trait =
-            BackgroundDefinitions.PERSONALITY_TRAITS.get(RANDOM.nextInt(BackgroundDefinitions.PERSONALITY_TRAITS.size()));
+        BackgroundDefinitions.BackgroundEntry trait = traits.get(RANDOM.nextInt(traits.size()));
         bg.setPersonalityTrait(trait.id());
 
-        if (RANDOM.nextDouble() < PENALTY_CHANCE) {
+        double penaltyChance = ModSettings.PENALTY_CHANCE.get();
+        double secondPenaltyChance = ModSettings.SECOND_PENALTY_CHANCE.get();
+        int maxPenalties = ModSettings.MAX_PENALTIES.get();
+
+        if (!penalties.isEmpty() && maxPenalties > 0 && RANDOM.nextDouble() < penaltyChance) {
             BackgroundDefinitions.PenaltyEntry penalty =
-                BackgroundDefinitions.PENALTIES.get(RANDOM.nextInt(BackgroundDefinitions.PENALTIES.size()));
+                penalties.get(RANDOM.nextInt(penalties.size()));
             bg.addPenalty(penalty.id());
 
-            if (RANDOM.nextDouble() < SECOND_PENALTY_CHANCE) {
+            if (maxPenalties > 1 && penalties.size() > 1 && RANDOM.nextDouble() < secondPenaltyChance) {
                 BackgroundDefinitions.PenaltyEntry second;
                 do {
-                    second = BackgroundDefinitions.PENALTIES.get(
-                        RANDOM.nextInt(BackgroundDefinitions.PENALTIES.size()));
+                    second = penalties.get(RANDOM.nextInt(penalties.size()));
                 } while (second.id().equals(penalty.id()));
                 bg.addPenalty(second.id());
             }
