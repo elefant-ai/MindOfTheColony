@@ -49,6 +49,10 @@ repositories {
         name = 'Sponge'
         url = 'https://repo.spongepowered.org/repository/maven-public/'
     }
+    maven {
+        name = 'Modrinth'
+        url = 'https://api.modrinth.com/maven'
+    }
     mavenCentral()
 }
 
@@ -80,6 +84,9 @@ dependencies {
     localRuntime "com.ldtteam:structurize:${structurize_version}"
     localRuntime "com.ldtteam:blockui:${blockui_version}"
     localRuntime "com.ldtteam:multipiston:${multipiston_version}"
+
+    // Jade (tooltip/overlay mod for testing)
+    localRuntime "maven.modrinth:jade:15.10.3+neoforge"
 }
 
 tasks.withType(ProcessResources).configureEach {
