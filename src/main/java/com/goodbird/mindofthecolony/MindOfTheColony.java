@@ -1,7 +1,9 @@
 package com.goodbird.mindofthecolony;
 
 import com.goodbird.mindofthecolony.config.BackgroundConfigLoader;
+import com.goodbird.mindofthecolony.config.EventConfigLoader;
 import com.goodbird.mindofthecolony.config.ModSettings;
+import com.goodbird.mindofthecolony.events.ColonyEventManager;
 import com.goodbird.mindofthecolony.event.NpcEventHandler;
 import com.goodbird.mindofthecolony.network.ModNetworking;
 import game.player2.npc.Player2NpcLib;
@@ -40,26 +42,30 @@ public class MindOfTheColony {
 
     @SubscribeEvent
     public void onServerStarted(ServerStartedEvent event) {
-        // Load background definitions from JSON config
+        // Load background and event definitions from JSON config
         BackgroundConfigLoader.loadOrCreate();
+        EventConfigLoader.loadOrCreate();
 
         // Initialize java-npc library and register event listener
         Player2NpcLib.initialize();
         Player2NpcLib.addListener(new NpcEventHandler());
 
-        // Initialize the manager when server starts
+        // Initialize managers when server starts
         CitizenNpcManager.getInstance().initialize();
+        ColonyEventManager.getInstance().initialize(event.getServer());
         LOGGER.info("Mind of the Colony ready - citizens can now chat!");
     }
 
     @SubscribeEvent
     public void onServerTick(ServerTickEvent.Post event) {
         CitizenNpcManager.getInstance().onServerTick();
+        ColonyEventManager.getInstance().onServerTick(event.getServer());
     }
 
     @SubscribeEvent
     public void onServerStopping(ServerStoppingEvent event) {
         LOGGER.info("Mind of the Colony is shutting down AI bridges.");
+        ColonyEventManager.getInstance().shutdown();
         CitizenNpcManager.getInstance().clearAllAIs();
     }
 }

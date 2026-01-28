@@ -1,5 +1,7 @@
 package com.goodbird.mindofthecolony.status;
 
+import com.goodbird.mindofthecolony.events.ColonyEventLog;
+import com.goodbird.mindofthecolony.events.ColonyEventManager;
 import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.IColony;
 
@@ -15,6 +17,11 @@ public class AgentStatus extends ObjectStatus {
 
         if (colony != null) {
             agentStatus.add("colonyStatus", ColonyStatus.fromColony(colony).toString());
+
+            ColonyEventLog log = ColonyEventManager.getInstance().getLog(colony.getID());
+            if (log != null && !log.getActiveEvents().isEmpty()) {
+                agentStatus.add("recentColonyEvents", log.toContextString());
+            }
         } else {
             agentStatus.add("colonyStatus", "{\"error\": \"Colony data not available\"}");
         }

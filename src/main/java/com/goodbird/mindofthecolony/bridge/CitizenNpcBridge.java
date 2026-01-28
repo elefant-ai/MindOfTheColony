@@ -2,6 +2,8 @@ package com.goodbird.mindofthecolony.bridge;
 
 import com.goodbird.mindofthecolony.CitizenNpcManager;
 import com.goodbird.mindofthecolony.background.CitizenBackground;
+import com.goodbird.mindofthecolony.events.ColonyEventLog;
+import com.goodbird.mindofthecolony.events.ColonyEventManager;
 import com.goodbird.mindofthecolony.mixin.IExtendedCitizenData;
 import com.goodbird.mindofthecolony.status.AgentStatus;
 import com.minecolonies.api.colony.ICitizenData;
@@ -84,6 +86,12 @@ public class CitizenNpcBridge {
             }
         }
 
+        String eventsSection = "";
+        ColonyEventLog eventLog = ColonyEventManager.getInstance().getLog(citizenData.getColony().getID());
+        if (eventLog != null && !eventLog.getActiveEvents().isEmpty()) {
+            eventsSection = eventLog.toSystemPromptSection();
+        }
+
         return """
             You are %s, a %s living in the colony of %s in the world of Minecraft.
 
@@ -95,11 +103,14 @@ public class CitizenNpcBridge {
 
             %s
 
+            %s
+
             GUIDELINES:
             - Speak naturally in first person as this character
             - Reference your job, colony life, and current situation when relevant
             - React to your happiness and mood appropriately
             - Your background and any dark history should subtly influence your speech and attitudes
+            - Reference current colony events naturally when relevant to conversation
             - Keep responses conversational and concise (under 200 characters)
             - You can express opinions about colony management and other citizens
             - If the player asks for another colonist by name, politely redirect them
@@ -115,7 +126,8 @@ public class CitizenNpcBridge {
                 age,
                 getMoodDescription(happiness),
                 happiness,
-                backgroundSection
+                backgroundSection,
+                eventsSection
             );
     }
 
