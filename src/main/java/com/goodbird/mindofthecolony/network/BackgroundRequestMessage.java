@@ -50,16 +50,32 @@ public record BackgroundRequestMessage(
                 ICitizenData citizenData = colony.getCitizenManager().getCivilian(msg.citizenId());
                 if (citizenData == null) return;
 
-                String info = "No background data available.";
+                StringBuilder info = new StringBuilder();
+
+                // Add disease modifier info
+                double diseaseModifier = citizenData.getDiseaseModifier();
+                String jobName = citizenData.getJob() != null
+                    ? citizenData.getJob().getJobRegistryEntry().getTranslationKey()
+                    : "none";
+                if (jobName.contains(".")) {
+                    jobName = jobName.substring(jobName.lastIndexOf(".") + 1);
+                }
+                info.append(String.format("Disease Modifier: %.2f (job: %s)\n", diseaseModifier, jobName));
+
+                // Add background info
                 if (citizenData instanceof IExtendedCitizenData extData) {
                     CitizenBackground bg = extData.getCitizenBackground();
                     if (bg != null && bg.isInitialized()) {
-                        info = bg.toSystemPromptSection();
+                        info.append(bg.toSystemPromptSection());
+                    } else {
+                        info.append("No background data available.");
                     }
+                } else {
+                    info.append("No background data available.");
                 }
 
                 PacketDistributor.sendToPlayer(player,
-                    new BackgroundResponseMessage(msg.citizenId(), info));
+                    new BackgroundResponseMessage(msg.citizenId(), info.toString()));
             }
         });
     }
