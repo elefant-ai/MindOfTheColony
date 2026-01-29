@@ -24,7 +24,6 @@ public class BackgroundConfigLoader {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     private static final String CONFIG_DIR_NAME = "mindofthecolony";
-    private static final String ORIGINS_FILE = "origins.json";
     private static final String TRAITS_FILE = "traits.json";
 
     /**
@@ -41,46 +40,10 @@ public class BackgroundConfigLoader {
             return;
         }
 
-        List<OriginDefinition> origins = loadOrigins(configDir);
         List<TraitDefinition> traits = loadTraits(configDir);
 
-        TraitRegistry.load(traits, origins);
-        LOGGER.info("Loaded {} origins, {} traits from config", origins.size(), traits.size());
-    }
-
-    // --- Origins ---
-
-    private static List<OriginDefinition> loadOrigins(Path configDir) {
-        Path file = configDir.resolve(ORIGINS_FILE);
-        Type listType = new TypeToken<List<BackgroundConfigData.OriginData>>() {}.getType();
-
-        if (!Files.exists(file)) {
-            LOGGER.info("Origins config not found, generating defaults at: {}", file);
-            writeDefaults(file, buildDefaultOriginData());
-        }
-
-        List<BackgroundConfigData.OriginData> raw = readJsonList(file, listType);
-        if (raw == null || raw.isEmpty()) {
-            LOGGER.warn("Origins config was empty or corrupt. Regenerating defaults.");
-            raw = buildDefaultOriginData();
-            writeDefaults(file, raw);
-        }
-
-        List<OriginDefinition> result = new ArrayList<>();
-        for (BackgroundConfigData.OriginData o : raw) {
-            if (o.id != null && o.displayText != null) {
-                Map<String, Double> mods = o.modifiers != null ? o.modifiers : new HashMap<>();
-                result.add(new OriginDefinition(o.id, o.displayText, mods));
-            } else {
-                LOGGER.warn("Skipping origin entry with null id or displayText");
-            }
-        }
-
-        if (result.isEmpty()) {
-            LOGGER.error("No valid origins found after loading. Using defaults.");
-            return getDefaultOrigins();
-        }
-        return result;
+        TraitRegistry.load(traits);
+        LOGGER.info("Loaded {} traits from config", traits.size());
     }
 
     // --- Traits ---
@@ -144,18 +107,6 @@ public class BackgroundConfigLoader {
 
     // --- Default data builders ---
 
-    private static List<BackgroundConfigData.OriginData> buildDefaultOriginData() {
-        List<BackgroundConfigData.OriginData> list = new ArrayList<>();
-        for (OriginDefinition origin : getDefaultOrigins()) {
-            BackgroundConfigData.OriginData o = new BackgroundConfigData.OriginData();
-            o.id = origin.id();
-            o.displayText = origin.displayText();
-            o.modifiers = origin.modifiers().isEmpty() ? null : new HashMap<>(origin.modifiers());
-            list.add(o);
-        }
-        return list;
-    }
-
     private static List<BackgroundConfigData.TraitData> buildDefaultTraitData() {
         List<BackgroundConfigData.TraitData> list = new ArrayList<>();
         for (TraitDefinition trait : getDefaultTraits()) {
@@ -170,47 +121,6 @@ public class BackgroundConfigLoader {
     }
 
     // --- Default definitions ---
-
-    public static List<OriginDefinition> getDefaultOrigins() {
-        return List.of(
-            new OriginDefinition("refugee_farmer",
-                "You were once a simple farmer who fled your homeland after raiders burned your village.",
-                Map.of()),
-            new OriginDefinition("disgraced_noble",
-                "You were born into minor nobility but lost everything due to a family scandal.",
-                Map.of()),
-            new OriginDefinition("wandering_trader",
-                "You spent years as a traveling merchant before settling down in this colony.",
-                Map.of()),
-            new OriginDefinition("shipwreck_survivor",
-                "You washed ashore after your merchant vessel sank in a terrible storm.",
-                Map.of()),
-            new OriginDefinition("former_soldier",
-                "You served in a distant army before deserting and seeking a peaceful life.",
-                Map.of()),
-            new OriginDefinition("orphan_street_kid",
-                "You grew up on the streets of a large city, scraping by on wits alone.",
-                Map.of()),
-            new OriginDefinition("monastery_runaway",
-                "You were raised in a monastery but fled its strict discipline.",
-                Map.of()),
-            new OriginDefinition("frontier_settler",
-                "You come from a long line of pioneers who always pushed into untamed lands.",
-                Map.of()),
-            new OriginDefinition("exiled_scholar",
-                "You were a scholar expelled from a university for controversial research.",
-                Map.of()),
-            new OriginDefinition("plague_survivor",
-                "You survived a devastating plague that killed most of your family and neighbors.",
-                Map.of("diseaseRate", 0.7)),
-            new OriginDefinition("mining_family",
-                "You come from a family of miners who worked deep underground for generations.",
-                Map.of("diseaseRate", 1.2)),
-            new OriginDefinition("coastal_fisher",
-                "You grew up in a fishing village and still miss the smell of the sea.",
-                Map.of())
-        );
-    }
 
     public static List<TraitDefinition> getDefaultTraits() {
         return List.of(

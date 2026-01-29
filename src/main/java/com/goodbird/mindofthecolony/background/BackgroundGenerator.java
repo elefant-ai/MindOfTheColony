@@ -17,13 +17,6 @@ public final class BackgroundGenerator {
     public static CitizenBackground generate() {
         CitizenBackground bg = new CitizenBackground();
 
-        // Pick a random origin
-        List<OriginDefinition> origins = TraitRegistry.getAllOrigins();
-        if (!origins.isEmpty()) {
-            OriginDefinition origin = origins.get(RANDOM.nextInt(origins.size()));
-            bg.setOrigin(origin.id());
-        }
-
         // Pick 2-4 unique traits using weighted selection
         int minTraits = ModSettings.MIN_TRAITS.get();
         int maxTraits = ModSettings.MAX_TRAITS.get();

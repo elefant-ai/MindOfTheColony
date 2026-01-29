@@ -15,7 +15,6 @@ import java.util.Optional;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
-import org.jetbrains.annotations.NotNull;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Shadow;
@@ -43,8 +42,8 @@ public abstract class MixinCitizenData implements IExtendedCitizenData {
     @Unique
     private CitizenBackground mindOfTheColony$citizenBackground = null;
 
-    @Inject(method = "deserializeNBT(Lnet/minecraft/core/HolderLookup$Provider;Lnet/minecraft/nbt/CompoundTag;)V", at = @At("TAIL"), remap = false)
-    public void deserializeNBT(@NotNull HolderLookup.Provider provider, CompoundTag compound, CallbackInfo ci) {
+    @Inject(method = "deserializeNBT", at = @At("TAIL"), remap = false)
+    private void onDeserializeNBT(HolderLookup.Provider provider, CompoundTag compound, CallbackInfo ci) {
         if (compound.contains("aiConversationHistory", Tag.TAG_COMPOUND)) {
             this.mindOfTheColony$loadedConversationHistoryNBT = compound.getCompound("aiConversationHistory");
         }
@@ -53,8 +52,8 @@ public abstract class MixinCitizenData implements IExtendedCitizenData {
         }
     }
 
-    @Inject(method = "serializeNBT(Lnet/minecraft/core/HolderLookup$Provider;)Lnet/minecraft/nbt/CompoundTag;", at = @At("TAIL"), cancellable = true, remap = false)
-    public void serializeNBT(@NotNull HolderLookup.Provider provider, CallbackInfoReturnable<CompoundTag> cir) {
+    @Inject(method = "serializeNBT", at = @At("RETURN"), remap = false)
+    private void onSerializeNBT(HolderLookup.Provider provider, CallbackInfoReturnable<CompoundTag> cir) {
         CompoundTag compound = cir.getReturnValue();
         if (this.mindOfTheColony$loadedConversationHistoryNBT != null) {
             compound.put("aiConversationHistory", this.mindOfTheColony$loadedConversationHistoryNBT);
@@ -62,7 +61,6 @@ public abstract class MixinCitizenData implements IExtendedCitizenData {
         if (this.mindOfTheColony$citizenBackground != null) {
             compound.put("citizenBackground", this.mindOfTheColony$citizenBackground.toNBT());
         }
-        cir.setReturnValue(compound);
     }
 
     @Override

@@ -48,7 +48,12 @@ public record BackgroundRequestMessage(
                 IColony colony = IColonyManager.getInstance().getColonyByDimension(msg.colonyId(), player.level().dimension());
                 if (colony == null) return;
 
+                // Check both citizen manager and visitor manager
                 ICitizenData citizenData = colony.getCitizenManager().getCivilian(msg.citizenId());
+                if (citizenData == null) {
+                    // Try visitor manager (visitors have negative IDs)
+                    citizenData = colony.getVisitorManager().getCivilian(msg.citizenId());
+                }
                 if (citizenData == null) return;
 
                 StringBuilder info = new StringBuilder();

@@ -9,12 +9,6 @@ import java.util.Map;
  */
 public class BackgroundConfigData {
 
-    public static class OriginData {
-        public String id;
-        public String displayText;
-        public Map<String, Double> modifiers;
-    }
-
     public static class TraitData {
         public String id;
         public String displayText;

@@ -6,7 +6,8 @@
   "mixins": [
     "MixinCitizenData",
     "MixinCitizenManager",
-    "MixinCitizenDiseaseHandler"
+    "MixinCitizenDiseaseHandler",
+    "MixinVisitorManager"
   ],
   "client": [
     "MixinMainWindowCitizen",

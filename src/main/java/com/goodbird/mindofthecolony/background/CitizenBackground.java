@@ -10,27 +10,26 @@ import java.util.List;
 
 /**
  * Holds a citizen's permanent background identity:
- * origin backstory and personality/physical/social traits.
+ * AI-generated backstory and traits (for modifiers).
  * Assigned once on first spawn, persisted via NBT forever.
  */
 public class CitizenBackground {
-    private String origin;
-    private final List<String> traits;
+    private String backstory;  // AI-generated freeform backstory
+    private final List<String> traits;  // Trait IDs for modifiers
     private transient TraitModifiers cachedModifiers;
 
     public CitizenBackground() {
-        this.origin = null;
+        this.backstory = null;
         this.traits = new ArrayList<>();
         this.cachedModifiers = null;
     }
 
-    public String getOrigin() {
-        return origin;
+    public String getBackstory() {
+        return backstory;
     }
 
-    public void setOrigin(String origin) {
-        this.origin = origin;
-        invalidateCache();
+    public void setBackstory(String backstory) {
+        this.backstory = backstory;
     }
 
     public List<String> getTraits() {
@@ -43,7 +42,7 @@ public class CitizenBackground {
     }
 
     public boolean isInitialized() {
-        return origin != null && !traits.isEmpty();
+        return backstory != null && !backstory.isEmpty();
     }
 
     private void invalidateCache() {
@@ -51,11 +50,11 @@ public class CitizenBackground {
     }
 
     /**
-     * Get computed modifiers from all traits and origin.
+     * Get computed modifiers from all traits.
      */
     public TraitModifiers getModifiers() {
         if (cachedModifiers == null) {
-            cachedModifiers = TraitModifierCalculator.calculate(traits, origin);
+            cachedModifiers = TraitModifierCalculator.calculate(traits);
         }
         return cachedModifiers;
     }
@@ -78,8 +77,8 @@ public class CitizenBackground {
 
     public CompoundTag toNBT() {
         CompoundTag tag = new CompoundTag();
-        if (origin != null) {
-            tag.putString("origin", origin);
+        if (backstory != null) {
+            tag.putString("backstory", backstory);
         }
         ListTag traitList = new ListTag();
         for (String t : traits) {
@@ -92,12 +91,16 @@ public class CitizenBackground {
     public static CitizenBackground fromNBT(CompoundTag tag) {
         CitizenBackground bg = new CitizenBackground();
 
-        // Origin
-        if (tag.contains("origin", Tag.TAG_STRING)) {
-            bg.origin = tag.getString("origin");
+        // Backstory
+        if (tag.contains("backstory", Tag.TAG_STRING)) {
+            bg.backstory = tag.getString("backstory");
+        }
+        // Migration from old origin field
+        else if (tag.contains("origin", Tag.TAG_STRING)) {
+            bg.backstory = "A citizen with a mysterious past.";
         }
 
-        // NEW FORMAT: traits list
+        // Traits
         if (tag.contains("traits", Tag.TAG_LIST)) {
             ListTag list = tag.getList("traits", Tag.TAG_STRING);
             for (int i = 0; i < list.size(); i++) {
@@ -125,17 +128,16 @@ public class CitizenBackground {
     public String toSystemPromptSection() {
         StringBuilder sb = new StringBuilder("BACKGROUND:\n");
 
-        // Origin
-        OriginDefinition originDef = TraitRegistry.getOrigin(origin);
-        if (originDef != null) {
-            sb.append("- Origin: ").append(originDef.displayText()).append("\n");
+        // AI-generated backstory
+        if (backstory != null && !backstory.isEmpty()) {
+            sb.append(backstory).append("\n");
         }
 
-        // Traits
+        // Traits (for display, show their descriptions)
         for (String traitId : traits) {
             TraitDefinition traitDef = TraitRegistry.getTrait(traitId);
             if (traitDef != null) {
-                sb.append("- Trait: ").append(traitDef.displayText()).append("\n");
+                sb.append("- ").append(traitDef.displayText()).append("\n");
             }
         }
 
@@ -144,7 +146,7 @@ public class CitizenBackground {
 
     public String toStatusString() {
         StringBuilder sb = new StringBuilder();
-        sb.append("origin=").append(origin != null ? origin : "none");
+        sb.append("backstory=").append(backstory != null ? "\"" + backstory.substring(0, Math.min(50, backstory.length())) + "...\"" : "none");
         sb.append(", traits=[");
         sb.append(String.join(", ", traits));
         sb.append("]");

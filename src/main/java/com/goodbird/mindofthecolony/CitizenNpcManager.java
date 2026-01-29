@@ -1,12 +1,15 @@
 package com.goodbird.mindofthecolony;
 
-import com.goodbird.mindofthecolony.background.BackgroundGenerator;
+import com.goodbird.mindofthecolony.background.BackgroundGenerationService;
 import com.goodbird.mindofthecolony.background.CitizenBackground;
 import com.goodbird.mindofthecolony.bridge.CitizenNpcBridge;
 import com.goodbird.mindofthecolony.mixin.IExtendedCitizenData;
 import com.minecolonies.api.colony.ICitizenData;
+import com.minecolonies.api.colony.ICivilianData;
+import com.minecolonies.api.colony.IColony;
+import com.minecolonies.api.colony.IColonyManager;
 import game.player2.npc.Player2NpcLib;
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -69,28 +72,54 @@ public class CitizenNpcManager {
             initialize();
         }
 
-        // Generate background if this citizen doesn't have one yet
+        // Check if citizen needs a background generated
+        boolean needsBackgroundGeneration = false;
         if (citizenData instanceof IExtendedCitizenData extData) {
             CitizenBackground bg = extData.getCitizenBackground();
-            if (bg == null || !bg.isInitialized()) {
-                CitizenBackground background = BackgroundGenerator.generate();
-                extData.setCitizenBackground(background);
-                LOGGER.info("Generated background for citizen {}: origin={}, traits={}",
-                    citizenData.getName(), background.getOrigin(), background.getTraits());
-            }
+            needsBackgroundGeneration = (bg == null || !bg.isInitialized());
         }
 
-        // Get any saved conversation history NBT
-        CompoundTag historyNBT = null;
-        if (citizenData instanceof IExtendedCitizenData extData) {
-            historyNBT = extData.getLoadedConversationHistoryNBT();
-        }
-
-        // Create bridge and spawn NPC
+        // Create bridge now (will spawn NPC after background is ready)
         CitizenNpcBridge bridge = new CitizenNpcBridge(citizenData, gameId);
         bridges.put(citizenData.getId(), bridge);
 
-        // Spawn the NPC asynchronously
+        if (needsBackgroundGeneration) {
+            // Generate background using AI, then spawn NPC
+            LOGGER.info("Requesting AI background generation for citizen: {}", citizenData.getName());
+
+            BackgroundGenerationService.getInstance().generateBackground(citizenData, gameId)
+                .thenAccept(background -> {
+                    if (citizenData instanceof IExtendedCitizenData extData) {
+                        extData.setCitizenBackground(background);
+                        LOGGER.info("AI generated background for citizen {}: backstory='{}...', traits={}",
+                            citizenData.getName(),
+                            background.getBackstory() != null
+                                ? background.getBackstory().substring(0, Math.min(50, background.getBackstory().length()))
+                                : "none",
+                            background.getTraits());
+                    }
+
+                    // Now spawn the NPC with the generated background
+                    spawnNpcForCitizen(bridge, citizenData);
+                })
+                .exceptionally(ex -> {
+                    LOGGER.error("Failed to generate background for citizen: {}", citizenData.getName(), ex);
+                    // Spawn anyway with whatever background exists
+                    spawnNpcForCitizen(bridge, citizenData);
+                    return null;
+                });
+        } else {
+            // Background already exists, spawn NPC immediately
+            spawnNpcForCitizen(bridge, citizenData);
+        }
+
+        LOGGER.info("AI Bridge created for citizen: {}", citizenData.getName());
+    }
+
+    /**
+     * Spawns the NPC for a citizen after their background is ready.
+     */
+    private void spawnNpcForCitizen(CitizenNpcBridge bridge, ICitizenData citizenData) {
         bridge.spawn().thenAccept(npcId -> {
             if (npcId != null) {
                 npcToCitizen.put(npcId, citizenData.getId());
@@ -100,8 +129,6 @@ public class CitizenNpcManager {
             LOGGER.error("Failed to spawn NPC for citizen: {}", citizenData.getName(), ex);
             return null;
         });
-
-        LOGGER.info("AI Bridge created for citizen: {}", citizenData.getName());
     }
 
     /**
@@ -194,6 +221,9 @@ public class CitizenNpcManager {
         bridges.clear();
         npcToCitizen.clear();
 
+        // Shutdown background generation service
+        BackgroundGenerationService.getInstance().shutdown();
+
         // Shutdown the java-npc library
         Player2NpcLib.shutdown();
 
@@ -225,5 +255,96 @@ public class CitizenNpcManager {
 
     public String getGameId() {
         return gameId;
+    }
+
+    /**
+     * Scans all colonies and citizens to find any without backgrounds.
+     * Generates AI backgrounds for any that are missing.
+     * Should be called on server start after colonies are loaded.
+     */
+    public void checkAndGenerateMissingBackgrounds(ServerLevel level) {
+        if (gameId == null) {
+            initialize();
+        }
+
+        LOGGER.info("Checking for citizens with missing backgrounds...");
+
+        int missingCount = 0;
+        int totalCount = 0;
+
+        for (IColony colony : IColonyManager.getInstance().getColonies(level)) {
+            // Check recruited citizens
+            for (ICitizenData citizenData : colony.getCitizenManager().getCitizens()) {
+                totalCount++;
+
+                if (citizenData instanceof IExtendedCitizenData extData) {
+                    CitizenBackground bg = extData.getCitizenBackground();
+                    if (bg == null || !bg.isInitialized()) {
+                        missingCount++;
+                        LOGGER.info("Citizen {} (ID: {}) missing background, generating...",
+                            citizenData.getName(), citizenData.getId());
+
+                        // Generate background asynchronously
+                        generateBackgroundForCitizen(citizenData);
+                    }
+                }
+            }
+
+            // Check visitors (non-recruited citizens in tavern)
+            for (ICivilianData civilianData : colony.getVisitorManager().getCivilianDataMap().values()) {
+                if (civilianData instanceof ICitizenData citizenData) {
+                    totalCount++;
+
+                    if (citizenData instanceof IExtendedCitizenData extData) {
+                        CitizenBackground bg = extData.getCitizenBackground();
+                        if (bg == null || !bg.isInitialized()) {
+                            missingCount++;
+                            LOGGER.info("Visitor {} (ID: {}) missing background, generating...",
+                                citizenData.getName(), citizenData.getId());
+
+                            // Generate background asynchronously
+                            generateBackgroundForCitizen(citizenData);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (missingCount > 0) {
+            LOGGER.info("Found {} citizens without backgrounds out of {} total. Generation started.",
+                missingCount, totalCount);
+        } else {
+            LOGGER.info("All {} citizens have backgrounds.", totalCount);
+        }
+    }
+
+    /**
+     * Generates a background for a single citizen (without creating a bridge).
+     * Used for citizens that already exist but are missing backgrounds.
+     */
+    private void generateBackgroundForCitizen(ICitizenData citizenData) {
+        BackgroundGenerationService.getInstance().generateBackground(citizenData, gameId)
+            .thenAccept(background -> {
+                if (citizenData instanceof IExtendedCitizenData extData) {
+                    extData.setCitizenBackground(background);
+                    LOGGER.info("Generated missing background for citizen {}: backstory='{}...', traits={}",
+                        citizenData.getName(),
+                        background.getBackstory() != null
+                            ? background.getBackstory().substring(0, Math.min(50, background.getBackstory().length()))
+                            : "none",
+                        background.getTraits());
+
+                    // If there's an existing bridge, respawn the NPC with new background
+                    CitizenNpcBridge bridge = bridges.get(citizenData.getId());
+                    if (bridge != null) {
+                        bridge.respawn();
+                    }
+                }
+            })
+            .exceptionally(ex -> {
+                LOGGER.error("Failed to generate missing background for citizen {}: {}",
+                    citizenData.getName(), ex.getMessage());
+                return null;
+            });
     }
 }

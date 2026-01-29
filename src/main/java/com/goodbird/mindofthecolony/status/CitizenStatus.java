@@ -53,7 +53,7 @@ public class CitizenStatus extends ObjectStatus {
         if (data instanceof IExtendedCitizenData extData) {
             CitizenBackground bg = extData.getCitizenBackground();
             if (bg != null && bg.isInitialized()) {
-                status.add("background_origin", bg.getOrigin());
+                status.add("background_backstory", bg.getBackstory());
                 status.add("background_traits",
                     "[" + bg.getTraits().stream()
                         .map(t -> "\"" + t + "\"")
