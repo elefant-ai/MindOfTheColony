@@ -201,6 +201,29 @@ public class CitizenNpcManager {
         LOGGER.info("All AI bridges cleared");
     }
 
+    /**
+     * Respawns all NPCs with fresh system prompts.
+     * Used when settings like language change at runtime.
+     */
+    public void respawnAllNpcs() {
+        LOGGER.info("Respawning all NPCs with updated settings...");
+        npcToCitizen.clear();
+
+        bridges.forEach((citizenId, bridge) -> {
+            bridge.respawn().thenAccept(npcId -> {
+                if (npcId != null) {
+                    npcToCitizen.put(npcId, citizenId);
+                    LOGGER.debug("NPC respawned for citizen ID: {} (npcId: {})", citizenId, npcId);
+                }
+            }).exceptionally(ex -> {
+                LOGGER.error("Failed to respawn NPC for citizen ID: {}", citizenId, ex);
+                return null;
+            });
+        });
+
+        LOGGER.info("Initiated respawn for {} NPCs", bridges.size());
+    }
+
     public String getGameId() {
         return gameId;
     }

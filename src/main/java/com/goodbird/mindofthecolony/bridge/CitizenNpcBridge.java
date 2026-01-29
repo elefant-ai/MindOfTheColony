@@ -1,7 +1,7 @@
 package com.goodbird.mindofthecolony.bridge;
 
-import com.goodbird.mindofthecolony.CitizenNpcManager;
 import com.goodbird.mindofthecolony.background.CitizenBackground;
+import com.goodbird.mindofthecolony.config.ModSettings;
 import com.goodbird.mindofthecolony.mixin.IExtendedCitizenData;
 import com.goodbird.mindofthecolony.status.AgentStatus;
 import com.minecolonies.api.colony.ICitizenData;
@@ -156,7 +156,9 @@ public class CitizenNpcBridge {
      * Gets the current game state context as a string.
      */
     public String getGameStateContext() {
-        return AgentStatus.fromCitizenAndColony(citizenData).toString();
+        String language = ModSettings.NPC_LANGUAGE.get();
+        String languageInstruction = "Respond in " + language + " only. ";
+        return languageInstruction + AgentStatus.fromCitizenAndColony(citizenData).toString();
     }
 
     /**
@@ -249,5 +251,14 @@ public class CitizenNpcBridge {
             npcHandle.kill();
         }
         npcHandle = null;
+    }
+
+    /**
+     * Respawns the NPC with a fresh system prompt.
+     * Used when settings like language change at runtime.
+     */
+    public CompletableFuture<UUID> respawn() {
+        shutdown();
+        return spawn();
     }
 }

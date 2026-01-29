@@ -18,5 +18,9 @@ public class ModSettings {
         .comment("Maximum number of penalties a citizen can be assigned")
         .defineInRange("maxPenalties", 2, 0, 10);
 
+    public static final ModConfigSpec.ConfigValue<String> NPC_LANGUAGE = BUILDER
+        .comment("Language for NPC conversations (e.g., english, spanish, french, german, japanese)")
+        .define("npcLanguage", "english");
+
     public static final ModConfigSpec SPEC = BUILDER.build();
 }

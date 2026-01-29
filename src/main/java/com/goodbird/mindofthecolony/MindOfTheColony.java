@@ -1,5 +1,6 @@
 package com.goodbird.mindofthecolony;
 
+import com.goodbird.mindofthecolony.command.MotcCommand;
 import com.goodbird.mindofthecolony.config.BackgroundConfigLoader;
 import com.goodbird.mindofthecolony.config.ModSettings;
 import com.goodbird.mindofthecolony.event.NpcEventHandler;
@@ -31,6 +32,9 @@ public class MindOfTheColony {
 
         // Register ourselves for server and other game events
         NeoForge.EVENT_BUS.register(this);
+
+        // Register command handler
+        NeoForge.EVENT_BUS.register(MotcCommand.class);
 
         // Register TOML config
         modContainer.registerConfig(ModConfig.Type.COMMON, ModSettings.SPEC, "mindofthecolony/settings.toml");
