@@ -28,6 +28,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Auto-scroll feature in chat history
   - Chat tab button in MineColonies citizen window
   - Dedicated chat interface for citizen conversations
+- Comprehensive Mixin integrations
+  - `MixinCitizenManager` for automatic AI bridge lifecycle management
+  - `MixinCitizenData` for background and conversation history persistence
+  - `MixinMainWindowCitizen` for chat UI integration
+  - `MixinDebugWindowCitizen` for background information display
+- Network messaging system
+  - `AIChatMessage` and `AIChatResponseMessage` for chat communication
+  - `BackgroundRequestMessage` and `BackgroundResponseMessage` for background data sync
+  - `ModNetworking` for network protocol management
+- Configuration system
+  - `ModSettings` for mod-wide configuration
+  - `BackgroundConfigLoader` for loading custom background definitions
+  - `BackgroundConfigData` for background data structures
+- Client-side functionality
+  - `ClientChatHandler` for handling chat on client
+  - `ClientBackgroundCache` for caching citizen backgrounds
+  - `ChatWindowCitizen` for chat UI rendering
 - NeoForge 1.21.1 support
   - Migration from Forge to NeoForge
   - Updated mod metadata to `neoforge.mods.toml`
@@ -54,37 +71,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced .gitignore to exclude build artifacts and IDE files
 
 ### Removed
-- Removed local library JARs from repository
+- Local library JARs from repository
   - blockui-1.20.1-1.0.193.jar
   - domum_ornamentum-1.20.1-1.0.290-snapshot-universal.jar
   - minecolonies-1.20.1-1.1.989-snapshot.jar
   - multipiston-1.20-1.2.43-RELEASE.jar
   - structurize-1.20.1-1.0.777-snapshot.jar
-- Removed obsolete Player2 API service classes
+- Obsolete Player2 API service classes
   - `HTTPUtils.java`
   - `Player2APIService.java`
-- Removed old Forge metadata (`META-INF/mods.toml`)
-- Removed `pack.mcmeta`
-- Removed `ConversationHistory.java` (functionality integrated into new bridge)
-- Removed `ChatEventHandler.java` (replaced by `NpcEventHandler.java`)
-
-### Technical Improvements
-- Added comprehensive Mixin integrations
-  - `MixinCitizenManager` for automatic AI bridge lifecycle management
-  - `MixinCitizenData` for background and conversation history persistence
-  - `MixinMainWindowCitizen` for chat UI integration
-  - `MixinDebugWindowCitizen` for background information display
-- Implemented network messaging system
-  - `AIChatMessage` and `AIChatResponseMessage` for chat communication
-  - `BackgroundRequestMessage` and `BackgroundResponseMessage` for background data sync
-  - `ModNetworking` for network protocol management
-- Added configuration system
-  - `ModSettings` for mod-wide configuration
-  - `BackgroundConfigLoader` for loading custom background definitions
-  - `BackgroundConfigData` for background data structures
-- Enhanced client-side functionality
-  - `ClientChatHandler` for handling chat on client
-  - `ClientBackgroundCache` for caching citizen backgrounds
-  - `ChatWindowCitizen` for chat UI rendering
+- Old Forge metadata (`META-INF/mods.toml`)
+- `pack.mcmeta` file
+- `ConversationHistory.java` (functionality integrated into new bridge)
+- `ChatEventHandler.java` (replaced by `NpcEventHandler.java`)
 
 [Unreleased]: https://github.com/elefant-ai/MindOfTheColony/compare/master...dev/mc-1.21.1
