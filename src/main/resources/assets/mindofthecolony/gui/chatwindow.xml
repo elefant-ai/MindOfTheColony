@@ -6,21 +6,23 @@
     <image source="minecolonies:textures/gui/builderhut/builder_paper.png" pos="0 0" size="280 244"/>
 
     <!-- Title -->
-    <text id="title" size="250 12" pos="15 12" color="black" textalign="MIDDLE"/>
+    <text id="title" size="240 12" pos="20 16" color="black" textalign="MIDDLE"/>
 
-    <!-- Chat history area -->
-    <text id="chatHistory" size="250 160" pos="15 28" color="black" wrap="true" textscale="0.8" textalign="TOP_LEFT"/>
+    <!-- Chat history area (scrollable) -->
+    <scrollgroup id="chatScroll" size="245 152" pos="20 34">
+        <text id="chatHistory" size="227 10000" pos="4 4" color="black" wrap="true" textscale="0.8" textalign="TOP_LEFT"/>
+    </scrollgroup>
 
     <!-- Input field -->
-    <input id="chatInput" size="190 16" pos="15 200" maxlength="200"/>
+    <input id="chatInput" size="185 16" pos="20 194" maxlength="200"/>
 
     <!-- Send button -->
-    <button id="sendButton" size="45 16" pos="215 200"
+    <button id="sendButton" size="50 16" pos="210 194"
             source="minecolonies:textures/gui/citizen/colonist_button_medium.png"
             label="Send" textcolor="black" texthovercolor="gray"/>
 
     <!-- Close button -->
-    <button id="closeButton" size="14 14" pos="256 8"
+    <button id="closeButton" size="14 14" pos="258 10"
             source="minecolonies:textures/gui/citizen/colonist_button_medium.png"
             label="X" textcolor="black" texthovercolor="gray"/>
 </window>

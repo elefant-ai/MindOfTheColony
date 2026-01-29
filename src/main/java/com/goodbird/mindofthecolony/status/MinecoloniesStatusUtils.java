@@ -4,6 +4,7 @@ import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.buildings.IBuilding;
 import com.minecolonies.api.colony.jobs.IJob;
+import com.minecolonies.api.colony.requestsystem.manager.IRequestManager;
 import com.minecolonies.api.colony.requestsystem.request.IRequest;
 import com.minecolonies.api.colony.requestsystem.request.RequestState;
 import com.minecolonies.api.entity.citizen.Skill;
@@ -77,6 +78,23 @@ public class MinecoloniesStatusUtils {
         status.add("work_building", workBuilding != null ? formatBuildingInfo(workBuilding) : "none");
         status.add("home_building", homeBuilding != null ? formatBuildingInfo(homeBuilding) : "none");
         status.add("is_idle_at_job", String.valueOf(data.isIdleAtJob()));
+
+        if (workBuilding != null) {
+            var workManager = data.getColony().getWorkManager();
+            for (var workOrder : workManager.getWorkOrders().values()) {
+                if (workBuilding.getPosition().equals(workOrder.getClaimedBy())) {
+                    status.add("current_work_order", workOrder.getDisplayName().getString());
+                    int fromLevel = workOrder.getCurrentLevel();
+                    int toLevel = workOrder.getTargetLevel();
+                    if (fromLevel == 0) {
+                        status.add("work_order_type", "Building new (Level " + toLevel + ")");
+                    } else {
+                        status.add("work_order_type", String.format("Upgrading (Level %d -> %d)", fromLevel, toLevel));
+                    }
+                    break;
+                }
+            }
+        }
 
         return status.toString();
     }
@@ -202,13 +220,12 @@ public class MinecoloniesStatusUtils {
             return requestsStatus.toString();
         }
 
+        var manager = data.getColony().getRequestManager();
         int requestIndex = 0;
         for (IRequest<?> request : openRequests) {
-            if (request.getState() == RequestState.ASSIGNED || request.getState() == RequestState.REPORTED) {
-                ObjectStatus singleRequestStatus = getObjectStatus(request);
-                requestsStatus.add("request_" + requestIndex, singleRequestStatus.toString());
-                requestIndex++;
-            }
+            ObjectStatus singleRequestStatus = getObjectStatus(request, manager);
+            requestsStatus.add("request_" + requestIndex, singleRequestStatus.toString());
+            requestIndex++;
         }
 
         if (requestIndex == 0) {
@@ -218,12 +235,14 @@ public class MinecoloniesStatusUtils {
         return requestsStatus.toString();
     }
 
-    private static @NotNull ObjectStatus getObjectStatus(IRequest<?> request) {
+    private static @NotNull ObjectStatus getObjectStatus(IRequest<?> request, IRequestManager manager) {
         ObjectStatus singleRequestStatus = new ObjectStatus();
         String description = request.getShortDisplayString().getString();
 
         singleRequestStatus.add("description", description);
         singleRequestStatus.add("status", request.getState().name());
+        singleRequestStatus.add("requester", request.getRequester().getRequesterDisplayName(manager, request).getString());
+        singleRequestStatus.add("bound_for_delivery", String.valueOf(!request.getDeliveries().isEmpty()));
 
         List<ItemStack> displayStacks = request.getDisplayStacks();
         if (!displayStacks.isEmpty()) {

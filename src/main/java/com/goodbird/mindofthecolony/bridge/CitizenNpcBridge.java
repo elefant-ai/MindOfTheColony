@@ -103,6 +103,7 @@ public class CitizenNpcBridge {
             - Keep responses conversational and concise (under 200 characters)
             - You can express opinions about colony management and other citizens
             - If the player asks for another colonist by name, politely redirect them
+            - When your work order shows Level 0 -> 1, that means you are building something new (not upgrading). Say "I'm building a new X" rather than "I'm upgrading X".
             - Stay in character at all times
 
             CONTEXT FORMAT:
