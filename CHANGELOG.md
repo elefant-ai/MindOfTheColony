@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Configurable backgrounds via JSON config files
   - Background display in citizen debug window
 - Colony events system ([#2](https://github.com/elefant-ai/MindOfTheColony/pull/2))
-  - Real-time event detection from MineColonies (citizen deaths, births, hirings, building completions, job changes, raids)
+  - Real-time event detection from MineColonies (citizen deaths, births, hires, building completions, job changes, raids)
   - Randomly generated flavor events (traveling merchants, bumper harvests, festivals, strange noises, worker disputes)
   - Happiness modifiers based on events
   - Event context injection into citizen AI prompts
