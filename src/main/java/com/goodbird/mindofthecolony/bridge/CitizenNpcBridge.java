@@ -130,8 +130,9 @@ public class CitizenNpcBridge {
         String traitDesc = "";
         if (citizenData instanceof IExtendedCitizenData extData) {
             CitizenBackground bg = extData.getCitizenBackground();
-            if (bg != null && bg.getPersonalityTrait() != null) {
-                traitDesc = " Known for being " + bg.getPersonalityTrait().replace("_", " ") + ".";
+            if (bg != null && !bg.getTraits().isEmpty()) {
+                String firstTrait = bg.getTraits().get(0).replace("_", " ");
+                traitDesc = " Known for being " + firstTrait + ".";
             }
         }
 

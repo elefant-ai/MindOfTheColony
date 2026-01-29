@@ -10,18 +10,18 @@ import java.util.List;
 
 /**
  * Holds a citizen's permanent background identity:
- * origin backstory, personality traits, and penalties.
+ * origin backstory and personality/physical/social traits.
  * Assigned once on first spawn, persisted via NBT forever.
  */
 public class CitizenBackground {
     private String origin;
-    private String personalityTrait;
-    private final List<String> penalties;
+    private final List<String> traits;
+    private transient TraitModifiers cachedModifiers;
 
     public CitizenBackground() {
         this.origin = null;
-        this.personalityTrait = null;
-        this.penalties = new ArrayList<>();
+        this.traits = new ArrayList<>();
+        this.cachedModifiers = null;
     }
 
     public String getOrigin() {
@@ -30,26 +30,48 @@ public class CitizenBackground {
 
     public void setOrigin(String origin) {
         this.origin = origin;
+        invalidateCache();
     }
 
-    public String getPersonalityTrait() {
-        return personalityTrait;
+    public List<String> getTraits() {
+        return traits;
     }
 
-    public void setPersonalityTrait(String trait) {
-        this.personalityTrait = trait;
-    }
-
-    public List<String> getPenalties() {
-        return penalties;
-    }
-
-    public void addPenalty(String penalty) {
-        this.penalties.add(penalty);
+    public void addTrait(String trait) {
+        this.traits.add(trait);
+        invalidateCache();
     }
 
     public boolean isInitialized() {
-        return origin != null && personalityTrait != null;
+        return origin != null && !traits.isEmpty();
+    }
+
+    private void invalidateCache() {
+        this.cachedModifiers = null;
+    }
+
+    /**
+     * Get computed modifiers from all traits and origin.
+     */
+    public TraitModifiers getModifiers() {
+        if (cachedModifiers == null) {
+            cachedModifiers = TraitModifierCalculator.calculate(traits, origin);
+        }
+        return cachedModifiers;
+    }
+
+    /**
+     * Convenience method for disease rate modifier.
+     */
+    public double getDiseaseRateModifier() {
+        return getModifiers().diseaseRate();
+    }
+
+    /**
+     * Convenience method for contact disease rate modifier.
+     */
+    public double getContactDiseaseRateModifier() {
+        return getModifiers().contactDiseaseRate();
     }
 
     // --- NBT serialization ---
@@ -59,31 +81,42 @@ public class CitizenBackground {
         if (origin != null) {
             tag.putString("origin", origin);
         }
-        if (personalityTrait != null) {
-            tag.putString("personality", personalityTrait);
+        ListTag traitList = new ListTag();
+        for (String t : traits) {
+            traitList.add(StringTag.valueOf(t));
         }
-        ListTag penaltyList = new ListTag();
-        for (String p : penalties) {
-            penaltyList.add(StringTag.valueOf(p));
-        }
-        tag.put("penalties", penaltyList);
+        tag.put("traits", traitList);
         return tag;
     }
 
     public static CitizenBackground fromNBT(CompoundTag tag) {
         CitizenBackground bg = new CitizenBackground();
+
+        // Origin
         if (tag.contains("origin", Tag.TAG_STRING)) {
             bg.origin = tag.getString("origin");
         }
-        if (tag.contains("personality", Tag.TAG_STRING)) {
-            bg.personalityTrait = tag.getString("personality");
-        }
-        if (tag.contains("penalties", Tag.TAG_LIST)) {
-            ListTag list = tag.getList("penalties", Tag.TAG_STRING);
+
+        // NEW FORMAT: traits list
+        if (tag.contains("traits", Tag.TAG_LIST)) {
+            ListTag list = tag.getList("traits", Tag.TAG_STRING);
             for (int i = 0; i < list.size(); i++) {
-                bg.penalties.add(list.getString(i));
+                bg.traits.add(list.getString(i));
             }
         }
+        // OLD FORMAT: personality + penalties -> migrate to traits
+        else {
+            if (tag.contains("personality", Tag.TAG_STRING)) {
+                bg.traits.add(tag.getString("personality"));
+            }
+            if (tag.contains("penalties", Tag.TAG_LIST)) {
+                ListTag list = tag.getList("penalties", Tag.TAG_STRING);
+                for (int i = 0; i < list.size(); i++) {
+                    bg.traits.add(list.getString(i));
+                }
+            }
+        }
+
         return bg;
     }
 
@@ -92,29 +125,18 @@ public class CitizenBackground {
     public String toSystemPromptSection() {
         StringBuilder sb = new StringBuilder("BACKGROUND:\n");
 
-        BackgroundDefinitions.getOrigins().stream()
-            .filter(e -> e.id().equals(origin))
-            .findFirst()
-            .ifPresent(e -> sb.append("- Origin: ").append(e.displayText()).append("\n"));
+        // Origin
+        OriginDefinition originDef = TraitRegistry.getOrigin(origin);
+        if (originDef != null) {
+            sb.append("- Origin: ").append(originDef.displayText()).append("\n");
+        }
 
-        BackgroundDefinitions.getPersonalityTraits().stream()
-            .filter(e -> e.id().equals(personalityTrait))
-            .findFirst()
-            .ifPresent(e -> sb.append("- Personality: ").append(e.displayText()).append("\n"));
-
-        for (String penaltyId : penalties) {
-            BackgroundDefinitions.getPenalties().stream()
-                .filter(e -> e.id().equals(penaltyId))
-                .findFirst()
-                .ifPresent(e -> {
-                    String label = switch (e.category()) {
-                        case CRIMINAL -> "Criminal record";
-                        case CONVERSATION -> "Hidden secret";
-                        case SOCIAL -> "Social burden";
-                        case FLAW -> "Personal flaw";
-                    };
-                    sb.append("- ").append(label).append(": ").append(e.displayText()).append("\n");
-                });
+        // Traits
+        for (String traitId : traits) {
+            TraitDefinition traitDef = TraitRegistry.getTrait(traitId);
+            if (traitDef != null) {
+                sb.append("- Trait: ").append(traitDef.displayText()).append("\n");
+            }
         }
 
         return sb.toString();
@@ -123,9 +145,8 @@ public class CitizenBackground {
     public String toStatusString() {
         StringBuilder sb = new StringBuilder();
         sb.append("origin=").append(origin != null ? origin : "none");
-        sb.append(", personality=").append(personalityTrait != null ? personalityTrait : "none");
-        sb.append(", penalties=[");
-        sb.append(String.join(", ", penalties));
+        sb.append(", traits=[");
+        sb.append(String.join(", ", traits));
         sb.append("]");
         return sb.toString();
     }

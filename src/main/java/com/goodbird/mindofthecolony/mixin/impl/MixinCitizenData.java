@@ -82,7 +82,7 @@ public abstract class MixinCitizenData implements IExtendedCitizenData {
 
     /**
      * @author MindOfTheColony
-     * @reason Allow any job's disease modifier to be configured via TOML
+     * @reason Allow disease modifier from job config and trait modifiers
      */
     @Overwrite(remap = false)
     public double getDiseaseModifier() {
@@ -93,14 +93,19 @@ public abstract class MixinCitizenData implements IExtendedCitizenData {
             return 0;
         }
 
+        // Get job-based modifier
+        double jobModifier = DiseaseConfig.getJobModifier(jobId);
+
         // Composter/Crusher use config base * skill factor (vanilla behavior)
         if ("composter".equals(jobId) || "crusher".equals(jobId)) {
-            double baseModifier = DiseaseConfig.getJobModifier(jobId);
-            double skillFactor = mindOfTheColony$getSkillFactor();
-            return getCitizenFoodHandler().getDiseaseModifier(baseModifier * skillFactor);
+            jobModifier *= mindOfTheColony$getSkillFactor();
         }
 
-        double jobModifier = DiseaseConfig.getJobModifier(jobId);
+        // Apply trait-based modifier
+        if (mindOfTheColony$citizenBackground != null) {
+            jobModifier *= mindOfTheColony$citizenBackground.getDiseaseRateModifier();
+        }
+
         return getCitizenFoodHandler().getDiseaseModifier(jobModifier);
     }
 

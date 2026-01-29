@@ -1,6 +1,8 @@
 package com.goodbird.mindofthecolony.mixin.impl;
 
+import com.goodbird.mindofthecolony.background.CitizenBackground;
 import com.goodbird.mindofthecolony.config.DiseaseConfig;
+import com.goodbird.mindofthecolony.mixin.IExtendedCitizenData;
 import com.minecolonies.api.IMinecoloniesAPI;
 import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.core.datalistener.model.Disease;
@@ -58,7 +60,7 @@ public abstract class MixinCitizenDiseaseHandler {
 
     /**
      * @author MindOfTheColony
-     * @reason Apply job-specific contact spread modifiers
+     * @reason Apply job and trait contact spread modifiers
      */
     @Overwrite
     public void onCollission(final ICitizenData citizen) {
@@ -69,8 +71,15 @@ public abstract class MixinCitizenDiseaseHandler {
             String jobId = getJobId();
             double contactModifier = DiseaseConfig.getContactModifier(jobId);
 
+            // Apply trait-based contact modifier
+            if (citizenData instanceof IExtendedCitizenData extData) {
+                CitizenBackground bg = extData.getCitizenBackground();
+                if (bg != null) {
+                    contactModifier *= bg.getContactDiseaseRateModifier();
+                }
+            }
+
             // Base chance is 1% (1 in 100), apply contact modifier
-            // e.g., healer with 0.1 modifier = 0.1% chance
             double effectiveChance = contactModifier;
 
             if (citizen.getRandom().nextDouble() * ONE_HUNDRED_PERCENT < effectiveChance) {

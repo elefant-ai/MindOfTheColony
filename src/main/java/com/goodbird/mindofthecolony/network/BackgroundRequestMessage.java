@@ -1,6 +1,7 @@
 package com.goodbird.mindofthecolony.network;
 
 import com.goodbird.mindofthecolony.background.CitizenBackground;
+import com.goodbird.mindofthecolony.background.TraitModifiers;
 import com.goodbird.mindofthecolony.mixin.IExtendedCitizenData;
 import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.IColony;
@@ -52,20 +53,32 @@ public record BackgroundRequestMessage(
 
                 StringBuilder info = new StringBuilder();
 
-                // Add disease modifier info
-                double diseaseModifier = citizenData.getDiseaseModifier();
+                // Add job info
                 String jobName = citizenData.getJob() != null
                     ? citizenData.getJob().getJobRegistryEntry().getTranslationKey()
                     : "none";
                 if (jobName.contains(".")) {
                     jobName = jobName.substring(jobName.lastIndexOf(".") + 1);
                 }
-                info.append(String.format("Disease Modifier: %.2f (job: %s)\n", diseaseModifier, jobName));
+                info.append(String.format("Job: %s\n", jobName));
 
-                // Add background info
+                // Add disease modifier (combined job + trait)
+                double diseaseModifier = citizenData.getDiseaseModifier();
+                info.append(String.format("Disease Modifier (combined): %.2f\n", diseaseModifier));
+
+                // Add background and trait modifiers
                 if (citizenData instanceof IExtendedCitizenData extData) {
                     CitizenBackground bg = extData.getCitizenBackground();
                     if (bg != null && bg.isInitialized()) {
+                        TraitModifiers mods = bg.getModifiers();
+                        info.append("\nTRAIT MODIFIERS:\n");
+                        info.append(String.format("- Disease Rate: %.2f\n", mods.diseaseRate()));
+                        info.append(String.format("- Contact Disease: %.2f\n", mods.contactDiseaseRate()));
+                        info.append(String.format("- Happiness Base: %+.2f\n", mods.happinessBase()));
+                        info.append(String.format("- Happiness Decay: %.2f\n", mods.happinessDecayRate()));
+                        info.append(String.format("- Work Speed: %.2f\n", mods.workSpeed()));
+                        info.append(String.format("- Food Consumption: %.2f\n", mods.foodConsumption()));
+                        info.append("\n");
                         info.append(bg.toSystemPromptSection());
                     } else {
                         info.append("No background data available.");

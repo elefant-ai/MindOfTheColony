@@ -1,9 +1,6 @@
 package com.goodbird.mindofthecolony.config;
 
-import com.goodbird.mindofthecolony.background.BackgroundDefinitions;
-import com.goodbird.mindofthecolony.background.BackgroundDefinitions.BackgroundEntry;
-import com.goodbird.mindofthecolony.background.BackgroundDefinitions.PenaltyCategory;
-import com.goodbird.mindofthecolony.background.BackgroundDefinitions.PenaltyEntry;
+import com.goodbird.mindofthecolony.background.*;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonSyntaxException;
@@ -17,7 +14,9 @@ import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class BackgroundConfigLoader {
 
@@ -26,12 +25,11 @@ public class BackgroundConfigLoader {
 
     private static final String CONFIG_DIR_NAME = "mindofthecolony";
     private static final String ORIGINS_FILE = "origins.json";
-    private static final String PERSONALITIES_FILE = "personalities.json";
-    private static final String PENALTIES_FILE = "penalties.json";
+    private static final String TRAITS_FILE = "traits.json";
 
     /**
      * Main entry point. Call once during server startup.
-     * Creates config directory and files if missing, loads data into BackgroundDefinitions.
+     * Creates config directory and files if missing, loads data into TraitRegistry.
      */
     public static void loadOrCreate() {
         Path configDir = FMLPaths.CONFIGDIR.get().resolve(CONFIG_DIR_NAME);
@@ -43,18 +41,16 @@ public class BackgroundConfigLoader {
             return;
         }
 
-        List<BackgroundEntry> origins = loadOrigins(configDir);
-        List<BackgroundEntry> traits = loadPersonalities(configDir);
-        List<PenaltyEntry> penalties = loadPenalties(configDir);
+        List<OriginDefinition> origins = loadOrigins(configDir);
+        List<TraitDefinition> traits = loadTraits(configDir);
 
-        BackgroundDefinitions.load(origins, traits, penalties);
-        LOGGER.info("Loaded {} origins, {} personality traits, {} penalties from config",
-            origins.size(), traits.size(), penalties.size());
+        TraitRegistry.load(traits, origins);
+        LOGGER.info("Loaded {} origins, {} traits from config", origins.size(), traits.size());
     }
 
     // --- Origins ---
 
-    private static List<BackgroundEntry> loadOrigins(Path configDir) {
+    private static List<OriginDefinition> loadOrigins(Path configDir) {
         Path file = configDir.resolve(ORIGINS_FILE);
         Type listType = new TypeToken<List<BackgroundConfigData.OriginData>>() {}.getType();
 
@@ -70,10 +66,11 @@ public class BackgroundConfigLoader {
             writeDefaults(file, raw);
         }
 
-        List<BackgroundEntry> result = new ArrayList<>();
+        List<OriginDefinition> result = new ArrayList<>();
         for (BackgroundConfigData.OriginData o : raw) {
             if (o.id != null && o.displayText != null) {
-                result.add(new BackgroundEntry(o.id, o.displayText));
+                Map<String, Double> mods = o.modifiers != null ? o.modifiers : new HashMap<>();
+                result.add(new OriginDefinition(o.id, o.displayText, mods));
             } else {
                 LOGGER.warn("Skipping origin entry with null id or displayText");
             }
@@ -81,79 +78,43 @@ public class BackgroundConfigLoader {
 
         if (result.isEmpty()) {
             LOGGER.error("No valid origins found after loading. Using defaults.");
-            return BackgroundDefinitions.getDefaultOrigins();
+            return getDefaultOrigins();
         }
         return result;
     }
 
-    // --- Personalities ---
+    // --- Traits ---
 
-    private static List<BackgroundEntry> loadPersonalities(Path configDir) {
-        Path file = configDir.resolve(PERSONALITIES_FILE);
+    private static List<TraitDefinition> loadTraits(Path configDir) {
+        Path file = configDir.resolve(TRAITS_FILE);
         Type listType = new TypeToken<List<BackgroundConfigData.TraitData>>() {}.getType();
 
         if (!Files.exists(file)) {
-            LOGGER.info("Personalities config not found, generating defaults at: {}", file);
+            LOGGER.info("Traits config not found, generating defaults at: {}", file);
             writeDefaults(file, buildDefaultTraitData());
         }
 
         List<BackgroundConfigData.TraitData> raw = readJsonList(file, listType);
         if (raw == null || raw.isEmpty()) {
-            LOGGER.warn("Personalities config was empty or corrupt. Regenerating defaults.");
+            LOGGER.warn("Traits config was empty or corrupt. Regenerating defaults.");
             raw = buildDefaultTraitData();
             writeDefaults(file, raw);
         }
 
-        List<BackgroundEntry> result = new ArrayList<>();
+        List<TraitDefinition> result = new ArrayList<>();
         for (BackgroundConfigData.TraitData t : raw) {
             if (t.id != null && t.displayText != null) {
-                result.add(new BackgroundEntry(t.id, t.displayText));
+                Map<String, Double> mods = t.modifiers != null ? t.modifiers : new HashMap<>();
+                result.add(new TraitDefinition(t.id, t.displayText, t.weight, mods));
             } else {
-                LOGGER.warn("Skipping personality trait entry with null id or displayText");
+                LOGGER.warn("Skipping trait entry with null id or displayText");
             }
         }
 
         if (result.isEmpty()) {
-            LOGGER.error("No valid personality traits found after loading. Using defaults.");
-            return BackgroundDefinitions.getDefaultPersonalityTraits();
+            LOGGER.error("No valid traits found after loading. Using defaults.");
+            return getDefaultTraits();
         }
-        return result;
-    }
-
-    // --- Penalties ---
-
-    private static List<PenaltyEntry> loadPenalties(Path configDir) {
-        Path file = configDir.resolve(PENALTIES_FILE);
-        Type listType = new TypeToken<List<BackgroundConfigData.PenaltyData>>() {}.getType();
-
-        if (!Files.exists(file)) {
-            LOGGER.info("Penalties config not found, generating defaults at: {}", file);
-            writeDefaults(file, buildDefaultPenaltyData());
-        }
-
-        List<BackgroundConfigData.PenaltyData> raw = readJsonList(file, listType);
-        if (raw == null) {
-            LOGGER.warn("Penalties config was corrupt. Regenerating defaults.");
-            raw = buildDefaultPenaltyData();
-            writeDefaults(file, raw);
-        }
-
-        List<PenaltyEntry> result = new ArrayList<>();
-        for (BackgroundConfigData.PenaltyData p : raw) {
-            if (p.id != null && p.displayText != null && p.category != null) {
-                try {
-                    PenaltyCategory cat = PenaltyCategory.valueOf(p.category.toUpperCase());
-                    result.add(new PenaltyEntry(p.id, cat, p.displayText));
-                } catch (IllegalArgumentException e) {
-                    LOGGER.warn("Skipping penalty '{}': unknown category '{}'. Valid: CRIMINAL, CONVERSATION, SOCIAL, FLAW",
-                        p.id, p.category);
-                }
-            } else {
-                LOGGER.warn("Skipping penalty entry with null id, category, or displayText");
-            }
-        }
-
-        // Penalties CAN be empty -- user may intentionally want no penalties
         return result;
     }
 
@@ -185,10 +146,11 @@ public class BackgroundConfigLoader {
 
     private static List<BackgroundConfigData.OriginData> buildDefaultOriginData() {
         List<BackgroundConfigData.OriginData> list = new ArrayList<>();
-        for (BackgroundEntry entry : BackgroundDefinitions.getDefaultOrigins()) {
+        for (OriginDefinition origin : getDefaultOrigins()) {
             BackgroundConfigData.OriginData o = new BackgroundConfigData.OriginData();
-            o.id = entry.id();
-            o.displayText = entry.displayText();
+            o.id = origin.id();
+            o.displayText = origin.displayText();
+            o.modifiers = origin.modifiers().isEmpty() ? null : new HashMap<>(origin.modifiers());
             list.add(o);
         }
         return list;
@@ -196,24 +158,137 @@ public class BackgroundConfigLoader {
 
     private static List<BackgroundConfigData.TraitData> buildDefaultTraitData() {
         List<BackgroundConfigData.TraitData> list = new ArrayList<>();
-        for (BackgroundEntry entry : BackgroundDefinitions.getDefaultPersonalityTraits()) {
+        for (TraitDefinition trait : getDefaultTraits()) {
             BackgroundConfigData.TraitData t = new BackgroundConfigData.TraitData();
-            t.id = entry.id();
-            t.displayText = entry.displayText();
+            t.id = trait.id();
+            t.displayText = trait.displayText();
+            t.weight = trait.weight();
+            t.modifiers = new HashMap<>(trait.modifiers());
             list.add(t);
         }
         return list;
     }
 
-    private static List<BackgroundConfigData.PenaltyData> buildDefaultPenaltyData() {
-        List<BackgroundConfigData.PenaltyData> list = new ArrayList<>();
-        for (PenaltyEntry entry : BackgroundDefinitions.getDefaultPenalties()) {
-            BackgroundConfigData.PenaltyData p = new BackgroundConfigData.PenaltyData();
-            p.id = entry.id();
-            p.category = entry.category().name();
-            p.displayText = entry.displayText();
-            list.add(p);
-        }
-        return list;
+    // --- Default definitions ---
+
+    public static List<OriginDefinition> getDefaultOrigins() {
+        return List.of(
+            new OriginDefinition("refugee_farmer",
+                "You were once a simple farmer who fled your homeland after raiders burned your village.",
+                Map.of()),
+            new OriginDefinition("disgraced_noble",
+                "You were born into minor nobility but lost everything due to a family scandal.",
+                Map.of()),
+            new OriginDefinition("wandering_trader",
+                "You spent years as a traveling merchant before settling down in this colony.",
+                Map.of()),
+            new OriginDefinition("shipwreck_survivor",
+                "You washed ashore after your merchant vessel sank in a terrible storm.",
+                Map.of()),
+            new OriginDefinition("former_soldier",
+                "You served in a distant army before deserting and seeking a peaceful life.",
+                Map.of()),
+            new OriginDefinition("orphan_street_kid",
+                "You grew up on the streets of a large city, scraping by on wits alone.",
+                Map.of()),
+            new OriginDefinition("monastery_runaway",
+                "You were raised in a monastery but fled its strict discipline.",
+                Map.of()),
+            new OriginDefinition("frontier_settler",
+                "You come from a long line of pioneers who always pushed into untamed lands.",
+                Map.of()),
+            new OriginDefinition("exiled_scholar",
+                "You were a scholar expelled from a university for controversial research.",
+                Map.of()),
+            new OriginDefinition("plague_survivor",
+                "You survived a devastating plague that killed most of your family and neighbors.",
+                Map.of("diseaseRate", 0.7)),
+            new OriginDefinition("mining_family",
+                "You come from a family of miners who worked deep underground for generations.",
+                Map.of("diseaseRate", 1.2)),
+            new OriginDefinition("coastal_fisher",
+                "You grew up in a fishing village and still miss the smell of the sea.",
+                Map.of())
+        );
+    }
+
+    public static List<TraitDefinition> getDefaultTraits() {
+        return List.of(
+            new TraitDefinition("cheerful",
+                "You tend to see the bright side of things and laugh easily.",
+                1.0, Map.of("happinessBase", 0.5, "happinessDecayRate", 0.8)),
+            new TraitDefinition("grumpy",
+                "You are perpetually irritable and quick to complain.",
+                1.0, Map.of("happinessBase", -0.3)),
+            new TraitDefinition("cautious",
+                "You are careful and suspicious, always expecting the worst.",
+                1.0, Map.of("diseaseRate", 0.9, "contactDiseaseRate", 0.8)),
+            new TraitDefinition("boastful",
+                "You love to talk about your achievements, real or imagined.",
+                1.0, Map.of("happinessBase", 0.2)),
+            new TraitDefinition("quiet",
+                "You are a person of few words, preferring to listen and observe.",
+                1.0, Map.of()),
+            new TraitDefinition("superstitious",
+                "You believe in omens, curses, and old folk remedies.",
+                1.0, Map.of("happinessBase", -0.1)),
+            new TraitDefinition("kind_hearted",
+                "You genuinely care about others and go out of your way to help.",
+                1.0, Map.of("happinessBase", 0.3)),
+            new TraitDefinition("sarcastic",
+                "You have a sharp tongue and a dry wit that not everyone appreciates.",
+                1.0, Map.of()),
+            new TraitDefinition("ambitious",
+                "You always want more -- more responsibility, more recognition, more success.",
+                1.0, Map.of("happinessBase", 0.2, "workSpeed", 1.05)),
+            new TraitDefinition("nostalgic",
+                "You frequently reminisce about the past and the life you left behind.",
+                1.0, Map.of("happinessBase", -0.2)),
+            new TraitDefinition("robust",
+                "You have an unusually strong constitution and rarely fall ill.",
+                0.5, Map.of("diseaseRate", 0.5, "happinessBase", 0.2)),
+            new TraitDefinition("sickly",
+                "You have a weak constitution and fall ill more easily than others.",
+                1.0, Map.of("diseaseRate", 1.5, "happinessBase", -0.3)),
+            new TraitDefinition("clumsy",
+                "You are remarkably clumsy and prone to accidents.",
+                1.0, Map.of("workSpeed", 0.9)),
+            new TraitDefinition("hardy",
+                "You can endure harsh conditions that would break others.",
+                0.5, Map.of("diseaseRate", 0.8, "foodConsumption", 0.9)),
+            new TraitDefinition("hardworking",
+                "You take pride in your work and always give your best effort.",
+                0.7, Map.of("workSpeed", 1.1, "foodConsumption", 1.15, "happinessBase", 0.2)),
+            new TraitDefinition("lazy",
+                "You have a tendency toward laziness and must push yourself to work hard.",
+                1.0, Map.of("workSpeed", 0.85, "foodConsumption", 0.9)),
+            new TraitDefinition("perfectionist",
+                "You obsess over details and won't rest until everything is just right.",
+                0.8, Map.of("workSpeed", 0.95, "happinessBase", -0.1)),
+            new TraitDefinition("outcast",
+                "People from your previous home shunned you. You struggle to trust others.",
+                1.0, Map.of("happinessBase", -0.4)),
+            new TraitDefinition("charismatic",
+                "People are naturally drawn to you and trust you easily.",
+                0.5, Map.of("happinessBase", 0.3)),
+            new TraitDefinition("short_temper",
+                "You have a volatile temper that gets you into trouble.",
+                1.0, Map.of("happinessDecayRate", 1.3)),
+            new TraitDefinition("criminal_past",
+                "You have a criminal history that you try to keep hidden.",
+                1.0, Map.of("happinessBase", -0.2)),
+            new TraitDefinition("haunted",
+                "You sometimes hear voices of people from your past who are no longer alive.",
+                1.0, Map.of("happinessBase", -0.3)),
+            new TraitDefinition("cowardly",
+                "You are easily frightened and tend to flee from danger.",
+                1.0, Map.of()),
+            new TraitDefinition("glutton",
+                "You have an insatiable appetite and are always hungry.",
+                0.8, Map.of("foodConsumption", 1.3, "diseaseRate", 0.9)),
+            new TraitDefinition("ascetic",
+                "You are accustomed to getting by on very little food.",
+                0.5, Map.of("foodConsumption", 0.75, "diseaseRate", 1.1))
+        );
     }
 }

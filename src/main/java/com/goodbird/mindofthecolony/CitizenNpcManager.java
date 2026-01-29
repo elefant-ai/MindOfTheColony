@@ -75,9 +75,8 @@ public class CitizenNpcManager {
             if (bg == null || !bg.isInitialized()) {
                 CitizenBackground background = BackgroundGenerator.generate();
                 extData.setCitizenBackground(background);
-                LOGGER.info("Generated background for citizen {}: origin={}, personality={}, penalties={}",
-                    citizenData.getName(), background.getOrigin(),
-                    background.getPersonalityTrait(), background.getPenalties());
+                LOGGER.info("Generated background for citizen {}: origin={}, traits={}",
+                    citizenData.getName(), background.getOrigin(), background.getTraits());
             }
         }
 
