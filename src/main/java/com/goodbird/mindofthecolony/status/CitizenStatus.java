@@ -1,8 +1,11 @@
 package com.goodbird.mindofthecolony.status;
 
-
+import com.goodbird.mindofthecolony.background.CitizenBackground;
+import com.goodbird.mindofthecolony.mixin.IExtendedCitizenData;
 import com.minecolonies.api.colony.ICitizenData;
 import net.minecraft.world.entity.LivingEntity;
+
+import java.util.stream.Collectors;
 
 public class CitizenStatus extends ObjectStatus {
 
@@ -45,6 +48,18 @@ public class CitizenStatus extends ObjectStatus {
 
         status.add("inventory", MinecoloniesStatusUtils.getInventoryString(data));
         status.add("equipment", MinecoloniesStatusUtils.getEquipmentString(data));
+
+        if (data instanceof IExtendedCitizenData extData) {
+            CitizenBackground bg = extData.getCitizenBackground();
+            if (bg != null && bg.isInitialized()) {
+                status.add("background_origin", bg.getOrigin());
+                status.add("background_personality", bg.getPersonalityTrait());
+                status.add("background_penalties",
+                    "[" + bg.getPenalties().stream()
+                        .map(p -> "\"" + p + "\"")
+                        .collect(Collectors.joining(", ")) + "]");
+            }
+        }
 
         return status;
     }
