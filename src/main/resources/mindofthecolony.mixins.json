@@ -8,7 +8,8 @@
     "MixinCitizenManager"
   ],
   "client": [
-    "MixinMainWindowCitizen"
+    "MixinMainWindowCitizen",
+    "MixinDebugWindowCitizen"
   ],
   "minVersion": "0.8"
 }
