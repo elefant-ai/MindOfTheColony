@@ -213,10 +213,10 @@ public class MotcCommand {
 
         int count = 0;
         for (ICivilianData visitorData : colony.getVisitorManager().getCivilianDataMap().values()) {
-            if (visitorData instanceof IExtendedCitizenData extData) {
+            if (visitorData instanceof IExtendedCitizenData extData && visitorData instanceof ICitizenData citizenData) {
                 player.sendSystemMessage(Component.literal("Regenerating background for visitor: " + visitorData.getName() + "..."));
 
-                BackgroundGenerationService.getInstance().generateBackground(visitorData, gameId)
+                BackgroundGenerationService.getInstance().generateBackground(citizenData, gameId)
                     .thenAccept(background -> {
                         extData.setCitizenBackground(background);
 

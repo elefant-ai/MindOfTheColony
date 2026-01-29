@@ -91,32 +91,14 @@ public class CitizenBackground {
     public static CitizenBackground fromNBT(CompoundTag tag) {
         CitizenBackground bg = new CitizenBackground();
 
-        // Backstory
         if (tag.contains("backstory", Tag.TAG_STRING)) {
             bg.backstory = tag.getString("backstory");
         }
-        // Migration from old origin field
-        else if (tag.contains("origin", Tag.TAG_STRING)) {
-            bg.backstory = "A citizen with a mysterious past.";
-        }
 
-        // Traits
         if (tag.contains("traits", Tag.TAG_LIST)) {
             ListTag list = tag.getList("traits", Tag.TAG_STRING);
             for (int i = 0; i < list.size(); i++) {
                 bg.traits.add(list.getString(i));
-            }
-        }
-        // OLD FORMAT: personality + penalties -> migrate to traits
-        else {
-            if (tag.contains("personality", Tag.TAG_STRING)) {
-                bg.traits.add(tag.getString("personality"));
-            }
-            if (tag.contains("penalties", Tag.TAG_LIST)) {
-                ListTag list = tag.getList("penalties", Tag.TAG_STRING);
-                for (int i = 0; i < list.size(); i++) {
-                    bg.traits.add(list.getString(i));
-                }
             }
         }
 
