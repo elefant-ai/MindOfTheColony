@@ -64,24 +64,51 @@ public class WeatherEventEvaluator implements EventEvaluator {
 
             List<String> affectedNames = new ArrayList<>();
 
-            // Apply effects to susceptible citizens
+            // Apply effects to susceptible citizens who don't already have the trait
             for (ICitizenData citizen : context.citizens()) {
-                if (isSusceptibleToThunder(citizen, config)) {
+                if (isSusceptibleToThunder(citizen, config) && !hasThunderstormTrait(citizen, config)) {
                     applyThunderstormEffects(citizen, context, config);
                     affectedNames.add(citizen.getName());
                 }
             }
 
             // Create event
-            WeatherEvent event = new WeatherEvent(
-                context.currentTick(),
-                context.colony().getID(),
-                WeatherEvent.WeatherType.THUNDERSTORM_START,
-                affectedNames
-            );
-            events.add(event);
+            if (!affectedNames.isEmpty()) {
+                WeatherEvent event = new WeatherEvent(
+                    context.currentTick(),
+                    context.colony().getID(),
+                    WeatherEvent.WeatherType.THUNDERSTORM_START,
+                    affectedNames
+                );
+                events.add(event);
+                LOGGER.info("Thunderstorm started: {} citizens affected", affectedNames.size());
+            }
 
-            LOGGER.info("Thunderstorm event: {} citizens affected", affectedNames.size());
+        } else if (weather.isCurrentlyThundering() && thunderstormActive) {
+            // Thunderstorm ongoing - random chance to affect more citizens
+            List<String> newlyAffected = new ArrayList<>();
+
+            for (ICitizenData citizen : context.citizens()) {
+                // 30% chance per evaluation to affect susceptible citizens who don't have the trait yet
+                if (isSusceptibleToThunder(citizen, config) &&
+                    !hasThunderstormTrait(citizen, config) &&
+                    context.random().nextFloat() < 0.3f) {
+                    applyThunderstormEffects(citizen, context, config);
+                    newlyAffected.add(citizen.getName());
+                    LOGGER.debug("Thunderstorm frightened {} during ongoing storm", citizen.getName());
+                }
+            }
+
+            if (!newlyAffected.isEmpty()) {
+                WeatherEvent event = new WeatherEvent(
+                    context.currentTick(),
+                    context.colony().getID(),
+                    WeatherEvent.WeatherType.THUNDERSTORM_ONGOING,
+                    newlyAffected
+                );
+                events.add(event);
+                LOGGER.info("Thunderstorm ongoing: {} more citizens affected", newlyAffected.size());
+            }
 
         } else if (!weather.isCurrentlyThundering() && thunderstormActive) {
             // Thunderstorm ended
@@ -96,6 +123,13 @@ public class WeatherEventEvaluator implements EventEvaluator {
             );
             events.add(event);
         }
+    }
+
+    private boolean hasThunderstormTrait(ICitizenData citizen, EventConfig.ThunderstormConfig config) {
+        if (!(citizen instanceof IExtendedCitizenData extData)) {
+            return false;
+        }
+        return extData.hasTemporaryTrait(config.temporaryTrait);
     }
 
     private boolean isSusceptibleToThunder(ICitizenData citizen, EventConfig.ThunderstormConfig config) {

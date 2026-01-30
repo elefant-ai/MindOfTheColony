@@ -16,6 +16,7 @@ public class WeatherEvent implements ColonyEvent {
 
     public enum WeatherType {
         THUNDERSTORM_START("thunderstorm_start", "A fierce thunderstorm has begun"),
+        THUNDERSTORM_ONGOING("thunderstorm_ongoing", "The thunderstorm continues to rage"),
         THUNDERSTORM_END("thunderstorm_end", "The thunderstorm has passed"),
         PROLONGED_RAIN("prolonged_rain", "It has been raining for a long time"),
         RAIN_END("rain_end", "The rain has finally stopped");
@@ -100,7 +101,8 @@ public class WeatherEvent implements ColonyEvent {
     public String getDescription() {
         String base = weatherType.getDefaultDescription();
 
-        if (weatherType == WeatherType.THUNDERSTORM_START && !affectedCitizenNames.isEmpty()) {
+        if ((weatherType == WeatherType.THUNDERSTORM_START || weatherType == WeatherType.THUNDERSTORM_ONGOING)
+                && !affectedCitizenNames.isEmpty()) {
             if (affectedCitizenNames.size() == 1) {
                 return base + ". " + affectedCitizenNames.get(0) + " is frightened by the thunder.";
             } else {
