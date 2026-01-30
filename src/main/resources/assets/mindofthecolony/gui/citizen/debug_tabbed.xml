@@ -1,0 +1,61 @@
+<window size="400 280"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/ldtteam/BlockUI/version/1.20.1/src/main/resources/assets/blockui/gui/block_ui.xsd">
+    <image source="minecolonies:textures/gui/builderhut/builder_paper_wide2.png" size="400 280"/>
+
+    <!-- Tab bar at top -->
+    <view id="tabBar" size="380 22" pos="10 14">
+        <button id="tabDebug" size="90 18" pos="0 0" label="Debug"/>
+        <button id="tabBackground" size="90 18" pos="95 0" label="Background"/>
+        <button id="tabEvents" size="90 18" pos="190 0" label="Events"/>
+    </view>
+
+    <!-- Content area with switchable pages -->
+    <switch id="contentPages" size="380 234" pos="10 38">
+
+        <!-- Background & Traits Page -->
+        <view id="backgroundPage">
+            <text id="citizenName" size="360 12" pos="5 2" color="black" style="bold"/>
+            <scrollgroup size="370 225" pos="5 16">
+                <view size="360 800">
+                    <text id="backstoryLabel" size="360 11" pos="0 0" color="black" style="bold" label="Backstory:"/>
+                    <text id="backstoryText" size="355 60" pos="0 12" color="black" textwrap="true"/>
+
+                    <text id="traitsLabel" size="360 11" pos="0 75" color="black" style="bold" label="Permanent Traits:"/>
+                    <text id="permanentTraits" size="355 50" pos="0 87" color="black" textwrap="true"/>
+
+                    <text id="tempTraitsLabel" size="360 11" pos="0 140" color="black" style="bold" label="Temporary Traits:"/>
+                    <text id="temporaryTraits" size="355 50" pos="0 152" color="orange" textwrap="true"/>
+
+                    <text id="modifiersLabel" size="360 11" pos="0 205" color="black" style="bold" label="Active Modifiers:"/>
+                    <text id="modifiers" size="355 60" pos="0 217" color="blue" textwrap="true"/>
+                </view>
+            </scrollgroup>
+        </view>
+
+        <!-- Original Debug Page -->
+        <view id="debugPage">
+            <text id="citizenid" size="150 11" pos="5 5" color="black"/>
+            <text id="colonyid" size="150 11" pos="5 18" color="black"/>
+            <scrollgroup id="buttonlist" size="160 35" pos="5 35">
+                <button id="aihistory" size="155 15" pos="0 0" label="Query AI History"/>
+                <button id="pathfinding" size="155 15" pos="0 17" label="Toggle Pathfinding"/>
+            </scrollgroup>
+            <scrollgroup size="370 145" pos="5 75">
+                <text id="output" size="360 2000" pos="0 0" color="black" textwrap="true"/>
+            </scrollgroup>
+        </view>
+
+        <!-- Events Page -->
+        <view id="eventsPage">
+            <text id="weatherLabel" size="360 11" pos="5 5" color="black" style="bold" label="Weather:"/>
+            <text id="weatherStatus" size="355 22" pos="5 18" color="black"/>
+
+            <text id="eventsLabel" size="360 11" pos="5 45" color="black" style="bold" label="Recent Colony Events:"/>
+            <scrollgroup size="370 160" pos="5 58">
+                <text id="eventsList" size="360 1000" pos="0 0" color="black" textwrap="true"/>
+            </scrollgroup>
+        </view>
+
+    </switch>
+</window>

@@ -1,7 +1,10 @@
 package com.goodbird.mindofthecolony.network;
 
 import com.goodbird.mindofthecolony.background.CitizenBackground;
-import com.goodbird.mindofthecolony.background.TraitModifiers;
+import com.goodbird.mindofthecolony.background.TraitDefinition;
+import com.goodbird.mindofthecolony.background.TraitRegistry;
+import com.goodbird.mindofthecolony.effect.TemporaryModifier;
+import com.goodbird.mindofthecolony.effect.TemporaryTrait;
 import com.goodbird.mindofthecolony.mixin.IExtendedCitizenData;
 import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.IColony;
@@ -16,6 +19,9 @@ import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Client -> Server: Request background data for a citizen.
@@ -56,45 +62,75 @@ public record BackgroundRequestMessage(
                 }
                 if (citizenData == null) return;
 
-                StringBuilder info = new StringBuilder();
+                long currentTick = player.level().getGameTime();
+                String backstory = "";
+                List<String> permanentTraits = new ArrayList<>();
+                List<String> temporaryTraits = new ArrayList<>();
+                List<String> activeModifiers = new ArrayList<>();
 
-                // Add job info
-                String jobName = citizenData.getJob() != null
-                    ? citizenData.getJob().getJobRegistryEntry().getTranslationKey()
-                    : "none";
-                if (jobName.contains(".")) {
-                    jobName = jobName.substring(jobName.lastIndexOf(".") + 1);
-                }
-                info.append(String.format("Job: %s\n", jobName));
-
-                // Add disease modifier (combined job + trait)
-                double diseaseModifier = citizenData.getDiseaseModifier();
-                info.append(String.format("Disease Modifier (combined): %.2f\n", diseaseModifier));
-
-                // Add background and trait modifiers
+                // Extract background data
                 if (citizenData instanceof IExtendedCitizenData extData) {
                     CitizenBackground bg = extData.getCitizenBackground();
                     if (bg != null && bg.isInitialized()) {
-                        TraitModifiers mods = bg.getModifiers();
-                        info.append("\nTRAIT MODIFIERS:\n");
-                        info.append(String.format("- Disease Rate: %.2f\n", mods.diseaseRate()));
-                        info.append(String.format("- Contact Disease: %.2f\n", mods.contactDiseaseRate()));
-                        info.append(String.format("- Happiness Base: %+.2f\n", mods.happinessBase()));
-                        info.append(String.format("- Happiness Decay: %.2f\n", mods.happinessDecayRate()));
-                        info.append(String.format("- Work Speed: %.2f\n", mods.workSpeed()));
-                        info.append(String.format("- Food Consumption: %.2f\n", mods.foodConsumption()));
-                        info.append("\n");
-                        info.append(bg.toSystemPromptSection());
-                    } else {
-                        info.append("No background data available.");
+                        backstory = bg.getBackstory() != null ? bg.getBackstory() : "";
+
+                        // Permanent traits with display text
+                        for (String traitId : bg.getTraits()) {
+                            TraitDefinition traitDef = TraitRegistry.getTrait(traitId);
+                            if (traitDef != null) {
+                                permanentTraits.add(traitDef.displayText());
+                            } else {
+                                permanentTraits.add(traitId);
+                            }
+                        }
                     }
-                } else {
-                    info.append("No background data available.");
+
+                    // Temporary traits
+                    for (TemporaryTrait tempTrait : extData.getTemporaryTraits()) {
+                        if (!tempTrait.isExpired(currentTick)) {
+                            TraitDefinition traitDef = TraitRegistry.getTrait(tempTrait.getTraitId());
+                            String displayText = traitDef != null ? traitDef.displayText() : tempTrait.getTraitId();
+                            int remainingMinutes = tempTrait.getRemainingTicks(currentTick) / 1200;
+                            String timeStr = tempTrait.isPermanent() ? "" : String.format(" (%d min)", remainingMinutes);
+                            temporaryTraits.add(displayText + timeStr);
+                        }
+                    }
+
+                    // Active modifiers
+                    for (TemporaryModifier mod : extData.getTemporaryModifiers()) {
+                        if (!mod.isExpired(currentTick)) {
+                            double currentValue = mod.getCurrentValue(currentTick);
+                            int remainingMinutes = mod.getRemainingTicks(currentTick) / 1200;
+                            String valueStr;
+                            if (mod.getModifierType().equals("happinessBase")) {
+                                valueStr = String.format("%+.1f", currentValue);
+                            } else {
+                                valueStr = String.format("%.0f%%", currentValue * 100);
+                            }
+                            activeModifiers.add(String.format("%s: %s from %s (%d min)",
+                                formatModifierType(mod.getModifierType()),
+                                valueStr,
+                                mod.getSource(),
+                                remainingMinutes));
+                        }
+                    }
                 }
 
                 PacketDistributor.sendToPlayer(player,
-                    new BackgroundResponseMessage(msg.citizenId(), info.toString()));
+                    new BackgroundResponseMessage(msg.citizenId(), backstory, permanentTraits, temporaryTraits, activeModifiers));
             }
         });
+    }
+
+    private static String formatModifierType(String type) {
+        return switch (type) {
+            case "diseaseRate" -> "Disease Rate";
+            case "contactDiseaseRate" -> "Contact Disease";
+            case "happinessBase" -> "Happiness";
+            case "happinessDecayRate" -> "Happiness Decay";
+            case "workSpeed" -> "Work Speed";
+            case "foodConsumption" -> "Food Consumption";
+            default -> type;
+        };
     }
 }

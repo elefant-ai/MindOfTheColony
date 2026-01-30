@@ -8,12 +8,17 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
+import java.util.List;
+
 /**
  * Server -> Client: Background data for a citizen.
  */
 public record BackgroundResponseMessage(
     int citizenId,
-    String backgroundInfo
+    String backstory,
+    List<String> permanentTraits,
+    List<String> temporaryTraits,
+    List<String> activeModifiers
 ) implements CustomPacketPayload {
 
     public static final Type<BackgroundResponseMessage> TYPE = new Type<>(
@@ -22,7 +27,10 @@ public record BackgroundResponseMessage(
 
     public static final StreamCodec<FriendlyByteBuf, BackgroundResponseMessage> STREAM_CODEC = StreamCodec.composite(
         ByteBufCodecs.VAR_INT, BackgroundResponseMessage::citizenId,
-        ByteBufCodecs.STRING_UTF8, BackgroundResponseMessage::backgroundInfo,
+        ByteBufCodecs.STRING_UTF8, BackgroundResponseMessage::backstory,
+        ByteBufCodecs.STRING_UTF8.apply(ByteBufCodecs.list()), BackgroundResponseMessage::permanentTraits,
+        ByteBufCodecs.STRING_UTF8.apply(ByteBufCodecs.list()), BackgroundResponseMessage::temporaryTraits,
+        ByteBufCodecs.STRING_UTF8.apply(ByteBufCodecs.list()), BackgroundResponseMessage::activeModifiers,
         BackgroundResponseMessage::new
     );
 
@@ -33,7 +41,8 @@ public record BackgroundResponseMessage(
 
     public static void handle(BackgroundResponseMessage msg, IPayloadContext ctx) {
         ctx.enqueueWork(() -> {
-            ClientBackgroundCache.put(msg.citizenId(), msg.backgroundInfo());
+            ClientBackgroundCache.putData(msg.citizenId(), msg.backstory(),
+                msg.permanentTraits(), msg.temporaryTraits(), msg.activeModifiers());
         });
     }
 }
