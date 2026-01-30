@@ -37,14 +37,15 @@ public final class BackgroundGenerator {
 
     /**
      * Pick a random trait using weighted selection, excluding already-picked traits.
+     * Only considers assignable traits (not temporaryOnly).
      */
     private static TraitDefinition pickWeightedTrait(Set<String> excludeIds) {
-        List<TraitDefinition> allTraits = TraitRegistry.getAllTraits();
+        List<TraitDefinition> assignableTraits = TraitRegistry.getAssignableTraits();
 
         // Filter out already-used traits
         List<TraitDefinition> available = new ArrayList<>();
         double totalWeight = 0;
-        for (TraitDefinition trait : allTraits) {
+        for (TraitDefinition trait : assignableTraits) {
             if (!excludeIds.contains(trait.id())) {
                 available.add(trait);
                 totalWeight += trait.weight();

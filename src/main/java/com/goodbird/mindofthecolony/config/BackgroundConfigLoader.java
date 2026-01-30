@@ -68,7 +68,7 @@ public class BackgroundConfigLoader {
         for (BackgroundConfigData.TraitData t : raw) {
             if (t.id != null && t.displayText != null) {
                 Map<String, Double> mods = t.modifiers != null ? t.modifiers : new HashMap<>();
-                result.add(new TraitDefinition(t.id, t.displayText, t.weight, mods));
+                result.add(new TraitDefinition(t.id, t.displayText, t.weight, mods, t.temporaryOnly));
             } else {
                 LOGGER.warn("Skipping trait entry with null id or displayText");
             }
@@ -115,6 +115,7 @@ public class BackgroundConfigLoader {
             t.displayText = trait.displayText();
             t.weight = trait.weight();
             t.modifiers = new HashMap<>(trait.modifiers());
+            t.temporaryOnly = trait.temporaryOnly();
             list.add(t);
         }
         return list;
@@ -198,7 +199,24 @@ public class BackgroundConfigLoader {
                 0.8, Map.of("foodConsumption", 1.3, "diseaseRate", 0.9)),
             new TraitDefinition("ascetic",
                 "You are accustomed to getting by on very little food.",
-                0.5, Map.of("foodConsumption", 0.75, "diseaseRate", 1.1))
+                0.5, Map.of("foodConsumption", 0.75, "diseaseRate", 1.1)),
+
+            // Temporary-only traits (applied by events, not assigned at birth)
+            new TraitDefinition("frightened",
+                "You are shaken by the recent storm.",
+                0.0, Map.of("workSpeed", 0.8, "happinessBase", -0.5), true),
+            new TraitDefinition("damp",
+                "The constant rain has left you feeling unwell.",
+                0.0, Map.of("diseaseRate", 1.5), true),
+            new TraitDefinition("recovering",
+                "You are still recovering from illness.",
+                0.0, Map.of("workSpeed", 0.7, "diseaseRate", 0.5), true),
+            new TraitDefinition("inspired",
+                "You feel a surge of creativity and motivation.",
+                0.0, Map.of("workSpeed", 1.2, "happinessBase", 0.5), true),
+            new TraitDefinition("uneasy",
+                "Something feels wrong, though you can't quite explain what.",
+                0.0, Map.of("happinessBase", -0.3), true)
         );
     }
 }

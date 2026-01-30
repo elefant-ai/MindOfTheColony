@@ -17,6 +17,7 @@ import static com.minecolonies.api.util.constant.Constants.ONE_HUNDRED_PERCENT;
 
 /**
  * Mixin to modify disease handling.
+ * - Disables vanilla random disease rolls (our event system handles this)
  * - Removes hardcoded healer immunity (uses configurable modifier instead)
  * - Applies job-specific contact spread modifiers
  */
@@ -42,6 +43,22 @@ public abstract class MixinCitizenDiseaseHandler {
     private static final int initialCitizenCount = IMinecoloniesAPI.getInstance()
             .getConfig()
             .getServer().initialCitizenAmount.get();
+
+    /**
+     * @author MindOfTheColony
+     * @reason Disable vanilla random disease rolls - our ColonyEventManager handles disease via DiseaseOutbreakEvaluator.
+     *         This keeps only the immunity tick countdown logic from vanilla.
+     */
+    @Overwrite
+    public void update(final int tickRate) {
+        // DO NOT roll for random disease here - our event system handles this via DiseaseOutbreakEvaluator
+        // The event system provides better control based on weather, food, happiness, and traits
+
+        // Keep immunity tick countdown from vanilla
+        if (immunityTicks > 0) {
+            immunityTicks -= tickRate;
+        }
+    }
 
     /**
      * @author MindOfTheColony

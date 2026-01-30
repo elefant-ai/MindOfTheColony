@@ -2,6 +2,7 @@ package com.goodbird.mindofthecolony.bridge;
 
 import com.goodbird.mindofthecolony.background.CitizenBackground;
 import com.goodbird.mindofthecolony.config.ModSettings;
+import com.goodbird.mindofthecolony.effect.TemporaryTrait;
 import com.goodbird.mindofthecolony.mixin.IExtendedCitizenData;
 import com.goodbird.mindofthecolony.status.AgentStatus;
 import com.minecolonies.api.colony.ICitizenData;
@@ -13,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -80,7 +82,11 @@ public class CitizenNpcBridge {
         if (citizenData instanceof IExtendedCitizenData extData) {
             CitizenBackground bg = extData.getCitizenBackground();
             if (bg != null && bg.isInitialized()) {
-                backgroundSection = bg.toSystemPromptSection();
+                // Include temporary traits in the system prompt
+                List<TemporaryTrait> tempTraits = extData.getTemporaryTraits();
+                long currentTick = citizenData.getColony().getWorld() != null
+                    ? citizenData.getColony().getWorld().getGameTime() : 0;
+                backgroundSection = bg.toSystemPromptSection(tempTraits, currentTick);
             }
         }
 

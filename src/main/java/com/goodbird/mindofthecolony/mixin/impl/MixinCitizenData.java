@@ -2,6 +2,8 @@ package com.goodbird.mindofthecolony.mixin.impl;
 
 import com.goodbird.mindofthecolony.background.CitizenBackground;
 import com.goodbird.mindofthecolony.config.DiseaseConfig;
+import com.goodbird.mindofthecolony.effect.TemporaryModifier;
+import com.goodbird.mindofthecolony.effect.TemporaryTrait;
 import com.goodbird.mindofthecolony.mixin.IExtendedCitizenData;
 import com.minecolonies.api.colony.buildings.IBuilding;
 import com.minecolonies.api.colony.buildings.IBuildingWorkerModule;
@@ -11,9 +13,12 @@ import com.minecolonies.api.entity.citizen.citizenhandlers.ICitizenFoodHandler;
 import com.minecolonies.api.entity.citizen.citizenhandlers.ICitizenSkillHandler;
 import com.minecolonies.core.colony.CitizenData;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
@@ -42,6 +47,12 @@ public abstract class MixinCitizenData implements IExtendedCitizenData {
     @Unique
     private CitizenBackground mindOfTheColony$citizenBackground = null;
 
+    @Unique
+    private final List<TemporaryModifier> mindOfTheColony$temporaryModifiers = new ArrayList<>();
+
+    @Unique
+    private final List<TemporaryTrait> mindOfTheColony$temporaryTraits = new ArrayList<>();
+
     @Inject(method = "deserializeNBT", at = @At("TAIL"), remap = false)
     private void onDeserializeNBT(HolderLookup.Provider provider, CompoundTag compound, CallbackInfo ci) {
         if (compound.contains("aiConversationHistory", Tag.TAG_COMPOUND)) {
@@ -49,6 +60,22 @@ public abstract class MixinCitizenData implements IExtendedCitizenData {
         }
         if (compound.contains("citizenBackground", Tag.TAG_COMPOUND)) {
             this.mindOfTheColony$citizenBackground = CitizenBackground.fromNBT(compound.getCompound("citizenBackground"));
+        }
+        // Load temporary modifiers
+        this.mindOfTheColony$temporaryModifiers.clear();
+        if (compound.contains("temporaryModifiers", Tag.TAG_LIST)) {
+            ListTag modifierList = compound.getList("temporaryModifiers", Tag.TAG_COMPOUND);
+            for (int i = 0; i < modifierList.size(); i++) {
+                this.mindOfTheColony$temporaryModifiers.add(TemporaryModifier.fromNBT(modifierList.getCompound(i)));
+            }
+        }
+        // Load temporary traits
+        this.mindOfTheColony$temporaryTraits.clear();
+        if (compound.contains("temporaryTraits", Tag.TAG_LIST)) {
+            ListTag traitList = compound.getList("temporaryTraits", Tag.TAG_COMPOUND);
+            for (int i = 0; i < traitList.size(); i++) {
+                this.mindOfTheColony$temporaryTraits.add(TemporaryTrait.fromNBT(traitList.getCompound(i)));
+            }
         }
     }
 
@@ -60,6 +87,22 @@ public abstract class MixinCitizenData implements IExtendedCitizenData {
         }
         if (this.mindOfTheColony$citizenBackground != null) {
             compound.put("citizenBackground", this.mindOfTheColony$citizenBackground.toNBT());
+        }
+        // Save temporary modifiers
+        if (!this.mindOfTheColony$temporaryModifiers.isEmpty()) {
+            ListTag modifierList = new ListTag();
+            for (TemporaryModifier mod : this.mindOfTheColony$temporaryModifiers) {
+                modifierList.add(mod.toNBT());
+            }
+            compound.put("temporaryModifiers", modifierList);
+        }
+        // Save temporary traits
+        if (!this.mindOfTheColony$temporaryTraits.isEmpty()) {
+            ListTag traitList = new ListTag();
+            for (TemporaryTrait trait : this.mindOfTheColony$temporaryTraits) {
+                traitList.add(trait.toNBT());
+            }
+            compound.put("temporaryTraits", traitList);
         }
     }
 
@@ -76,6 +119,48 @@ public abstract class MixinCitizenData implements IExtendedCitizenData {
     @Override
     public void setCitizenBackground(CitizenBackground background) {
         this.mindOfTheColony$citizenBackground = background;
+    }
+
+    @Override
+    public List<TemporaryModifier> getTemporaryModifiers() {
+        return new ArrayList<>(mindOfTheColony$temporaryModifiers);
+    }
+
+    @Override
+    public void addTemporaryModifier(TemporaryModifier modifier) {
+        mindOfTheColony$temporaryModifiers.add(modifier);
+    }
+
+    @Override
+    public void removeExpiredModifiers(long currentTick) {
+        mindOfTheColony$temporaryModifiers.removeIf(mod -> mod.isExpired(currentTick));
+    }
+
+    @Override
+    public List<TemporaryTrait> getTemporaryTraits() {
+        return new ArrayList<>(mindOfTheColony$temporaryTraits);
+    }
+
+    @Override
+    public void addTemporaryTrait(TemporaryTrait trait) {
+        // Remove existing trait with same ID if present
+        mindOfTheColony$temporaryTraits.removeIf(t -> t.getTraitId().equals(trait.getTraitId()));
+        mindOfTheColony$temporaryTraits.add(trait);
+    }
+
+    @Override
+    public void removeTemporaryTrait(String traitId) {
+        mindOfTheColony$temporaryTraits.removeIf(t -> t.getTraitId().equals(traitId));
+    }
+
+    @Override
+    public void removeExpiredTraits(long currentTick) {
+        mindOfTheColony$temporaryTraits.removeIf(trait -> trait.isExpired(currentTick));
+    }
+
+    @Override
+    public boolean hasTemporaryTrait(String traitId) {
+        return mindOfTheColony$temporaryTraits.stream().anyMatch(t -> t.getTraitId().equals(traitId));
     }
 
     /**

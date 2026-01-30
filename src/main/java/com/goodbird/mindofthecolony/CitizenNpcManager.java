@@ -3,6 +3,9 @@ package com.goodbird.mindofthecolony;
 import com.goodbird.mindofthecolony.background.BackgroundGenerationService;
 import com.goodbird.mindofthecolony.background.CitizenBackground;
 import com.goodbird.mindofthecolony.bridge.CitizenNpcBridge;
+import com.goodbird.mindofthecolony.event.ColonyEventManager;
+import com.goodbird.mindofthecolony.event.evaluator.DiseaseOutbreakEvaluator;
+import com.goodbird.mindofthecolony.event.evaluator.WeatherEventEvaluator;
 import com.goodbird.mindofthecolony.mixin.IExtendedCitizenData;
 import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.ICivilianData;
@@ -42,6 +45,9 @@ public class CitizenNpcManager {
 
     // Game session ID - unique per server instance
     private String gameId;
+
+    // Reference to the current server level for event ticking
+    private ServerLevel currentLevel;
 
     private CitizenNpcManager() {
     }
@@ -207,10 +213,43 @@ public class CitizenNpcManager {
     }
 
     /**
-     * Called every server tick to update bridges.
+     * Called every server tick to update bridges and event managers.
      */
     public void onServerTick() {
         bridges.values().forEach(CitizenNpcBridge::onTick);
+
+        // Tick event managers for all colonies
+        if (currentLevel != null) {
+            long currentTick = currentLevel.getGameTime();
+            for (IColony colony : IColonyManager.getInstance().getColonies(currentLevel)) {
+                ColonyEventManager eventManager = ColonyEventManager.getInstance(colony.getID());
+                eventManager.onTick(colony, currentLevel, currentTick);
+            }
+        }
+    }
+
+    /**
+     * Sets the current server level reference for event ticking.
+     */
+    public void setCurrentLevel(ServerLevel level) {
+        this.currentLevel = level;
+    }
+
+    /**
+     * Initializes event managers for all colonies with evaluators.
+     */
+    public void initializeEventManagers(ServerLevel level) {
+        this.currentLevel = level;
+
+        for (IColony colony : IColonyManager.getInstance().getColonies(level)) {
+            ColonyEventManager eventManager = ColonyEventManager.getInstance(colony.getID());
+
+            // Register evaluators
+            eventManager.registerEvaluator(new DiseaseOutbreakEvaluator());
+            eventManager.registerEvaluator(new WeatherEventEvaluator());
+
+            LOGGER.info("Initialized event manager for colony {} with evaluators", colony.getID());
+        }
     }
 
     /**

@@ -1,5 +1,7 @@
 package com.goodbird.mindofthecolony.background;
 
+import com.goodbird.mindofthecolony.effect.TemporaryModifier;
+import com.goodbird.mindofthecolony.effect.TemporaryTrait;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.StringTag;
@@ -50,13 +52,27 @@ public class CitizenBackground {
     }
 
     /**
-     * Get computed modifiers from all traits.
+     * Get computed modifiers from permanent traits only.
      */
     public TraitModifiers getModifiers() {
         if (cachedModifiers == null) {
             cachedModifiers = TraitModifierCalculator.calculate(traits);
         }
         return cachedModifiers;
+    }
+
+    /**
+     * Get computed modifiers including temporary effects.
+     *
+     * @param temporaryTraits    Temporary traits applied by events
+     * @param temporaryModifiers Direct temporary modifiers from events
+     * @param currentTick        Current game tick for calculating time-based effects
+     */
+    public TraitModifiers getModifiers(
+            List<TemporaryTrait> temporaryTraits,
+            List<TemporaryModifier> temporaryModifiers,
+            long currentTick) {
+        return TraitModifierCalculator.calculate(traits, temporaryTraits, temporaryModifiers, currentTick);
     }
 
     /**
@@ -108,6 +124,16 @@ public class CitizenBackground {
     // --- AI prompt generation ---
 
     public String toSystemPromptSection() {
+        return toSystemPromptSection(List.of(), 0);
+    }
+
+    /**
+     * Generate system prompt section including temporary traits.
+     *
+     * @param temporaryTraits Temporary traits applied by events
+     * @param currentTick     Current game tick for checking expiration
+     */
+    public String toSystemPromptSection(List<TemporaryTrait> temporaryTraits, long currentTick) {
         StringBuilder sb = new StringBuilder("BACKGROUND:\n");
 
         // AI-generated backstory
@@ -115,11 +141,21 @@ public class CitizenBackground {
             sb.append(backstory).append("\n");
         }
 
-        // Traits (for display, show their descriptions)
+        // Permanent traits (for display, show their descriptions)
         for (String traitId : traits) {
             TraitDefinition traitDef = TraitRegistry.getTrait(traitId);
             if (traitDef != null) {
                 sb.append("- ").append(traitDef.displayText()).append("\n");
+            }
+        }
+
+        // Temporary traits (if any active)
+        for (TemporaryTrait tempTrait : temporaryTraits) {
+            if (tempTrait.isExpired(currentTick)) continue;
+
+            TraitDefinition traitDef = TraitRegistry.getTrait(tempTrait.getTraitId());
+            if (traitDef != null) {
+                sb.append("- [Temporary] ").append(traitDef.displayText()).append("\n");
             }
         }
 

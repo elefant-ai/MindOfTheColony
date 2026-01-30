@@ -14,5 +14,6 @@ public class BackgroundConfigData {
         public String displayText;
         public double weight = 1.0;
         public Map<String, Double> modifiers = new HashMap<>();
+        public boolean temporaryOnly = false;
     }
 }

@@ -29,7 +29,19 @@ public final class TraitRegistry {
         return Collections.unmodifiableList(traitList);
     }
 
+    /**
+     * Get traits that can be assigned at birth (not temporaryOnly and weight > 0).
+     */
+    public static List<TraitDefinition> getAssignableTraits() {
+        return traitList.stream()
+            .filter(t -> !t.temporaryOnly() && t.weight() > 0)
+            .toList();
+    }
+
+    /**
+     * Get total weight of assignable traits (for random selection).
+     */
     public static double getTotalWeight() {
-        return traitList.stream().mapToDouble(TraitDefinition::weight).sum();
+        return getAssignableTraits().stream().mapToDouble(TraitDefinition::weight).sum();
     }
 }

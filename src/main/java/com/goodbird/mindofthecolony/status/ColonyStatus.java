@@ -1,6 +1,8 @@
 package com.goodbird.mindofthecolony.status;
 
+import com.goodbird.mindofthecolony.event.ColonyEventManager;
 import com.minecolonies.api.colony.IColony;
+import net.minecraft.server.level.ServerLevel;
 
 public class ColonyStatus extends ObjectStatus {
 
@@ -28,6 +30,31 @@ public class ColonyStatus extends ObjectStatus {
         status.add("players_in_colony", String.valueOf(colony.getPermissions().getPlayers().size()));
         status.add("mourning_info", MinecoloniesStatusUtils.getMourningStatusString(colony));
 
+        // Add weather info if available
+        if (colony.getWorld() instanceof ServerLevel level) {
+            status.add("weather", getWeatherDescription(level));
+        }
+
+        // Add recent events if available
+        ColonyEventManager eventManager = ColonyEventManager.getIfExists(colony.getID());
+        if (eventManager != null) {
+            long currentTick = colony.getWorld() != null ? colony.getWorld().getGameTime() : 0;
+            String eventContext = eventManager.getEventsAsContext(5, currentTick);
+            if (!eventContext.isEmpty()) {
+                status.add("recent_events", eventContext);
+            }
+        }
+
         return status;
+    }
+
+    private static String getWeatherDescription(ServerLevel level) {
+        if (level.isThundering()) {
+            return "Thunderstorm";
+        } else if (level.isRaining()) {
+            return "Raining";
+        } else {
+            return "Clear";
+        }
     }
 }

@@ -3,6 +3,7 @@ package com.goodbird.mindofthecolony;
 import com.goodbird.mindofthecolony.command.MotcCommand;
 import com.goodbird.mindofthecolony.config.BackgroundConfigLoader;
 import com.goodbird.mindofthecolony.config.DiseaseConfig;
+import com.goodbird.mindofthecolony.config.EventConfig;
 import com.goodbird.mindofthecolony.config.ModSettings;
 import com.goodbird.mindofthecolony.event.NpcEventHandler;
 import com.goodbird.mindofthecolony.network.ModNetworking;
@@ -48,8 +49,9 @@ public class MindOfTheColony {
 
     @SubscribeEvent
     public void onServerStarted(ServerStartedEvent event) {
-        // Load JSON config for backgrounds
+        // Load JSON configs
         BackgroundConfigLoader.loadOrCreate();
+        EventConfig.loadOrCreate();
 
         // Initialize java-npc library and register event listener
         Player2NpcLib.initialize();
@@ -62,6 +64,9 @@ public class MindOfTheColony {
         ServerLevel overworld = event.getServer().getLevel(Level.OVERWORLD);
         if (overworld != null) {
             CitizenNpcManager.getInstance().checkAndGenerateMissingBackgrounds(overworld);
+
+            // Initialize event managers for colonies
+            CitizenNpcManager.getInstance().initializeEventManagers(overworld);
         }
 
         LOGGER.info("Mind of the Colony ready - citizens can now chat!");
