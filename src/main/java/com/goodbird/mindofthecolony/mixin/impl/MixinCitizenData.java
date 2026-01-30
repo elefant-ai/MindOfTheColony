@@ -1,10 +1,13 @@
 package com.goodbird.mindofthecolony.mixin.impl;
 
 import com.goodbird.mindofthecolony.background.CitizenBackground;
+import com.goodbird.mindofthecolony.background.TraitModifiers;
 import com.goodbird.mindofthecolony.config.DiseaseConfig;
 import com.goodbird.mindofthecolony.effect.TemporaryModifier;
 import com.goodbird.mindofthecolony.effect.TemporaryTrait;
 import com.goodbird.mindofthecolony.mixin.IExtendedCitizenData;
+import com.goodbird.mindofthecolony.mixin.IExtendedCitizenSkillHandler;
+import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.buildings.IBuilding;
 import com.minecolonies.api.colony.buildings.IBuildingWorkerModule;
 import com.minecolonies.api.colony.jobs.IJob;
@@ -12,6 +15,7 @@ import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import com.minecolonies.api.entity.citizen.citizenhandlers.ICitizenFoodHandler;
 import com.minecolonies.api.entity.citizen.citizenhandlers.ICitizenSkillHandler;
 import com.minecolonies.core.colony.CitizenData;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -40,6 +44,7 @@ public abstract class MixinCitizenData implements IExtendedCitizenData {
     @Shadow public abstract Optional<AbstractEntityCitizen> getEntity();
     @Shadow public abstract ICitizenSkillHandler getCitizenSkillHandler();
     @Shadow public abstract IBuilding getWorkBuilding();
+    @Shadow public abstract IColony getColony();
 
     @Unique
     private CompoundTag mindOfTheColony$loadedConversationHistoryNBT = null;
@@ -77,6 +82,28 @@ public abstract class MixinCitizenData implements IExtendedCitizenData {
                 this.mindOfTheColony$temporaryTraits.add(TemporaryTrait.fromNBT(traitList.getCompound(i)));
             }
         }
+
+        // Set citizen reference on skill handler for trait bonuses
+        mindOfTheColony$setSkillHandlerCitizen();
+    }
+
+    /**
+     * Set the citizen reference on the skill handler.
+     */
+    @Unique
+    private void mindOfTheColony$setSkillHandlerCitizen() {
+        CitizenData self = (CitizenData)(Object)this;
+        if (getCitizenSkillHandler() instanceof IExtendedCitizenSkillHandler extHandler) {
+            extHandler.mindOfTheColony$setCitizen(self);
+        }
+    }
+
+    /**
+     * Also set citizen reference when initStats is called (for newly created citizens).
+     */
+    @Inject(method = "initStats", at = @At("TAIL"), remap = false)
+    private void onInitStats(CallbackInfo ci) {
+        mindOfTheColony$setSkillHandlerCitizen();
     }
 
     @Inject(method = "serializeNBT", at = @At("RETURN"), remap = false)
@@ -218,5 +245,99 @@ public abstract class MixinCitizenData implements IExtendedCitizenData {
             return translationKey.substring(translationKey.lastIndexOf(".") + 1).toLowerCase();
         }
         return translationKey.toLowerCase();
+    }
+
+    /**
+     * Apply foodConsumption modifier after saturation decrease.
+     * Higher foodConsumption = more hunger (additional saturation decrease).
+     */
+    @Inject(method = "decreaseSaturation", at = @At("TAIL"), remap = false)
+    private void applyFoodConsumptionModifier(double extraSaturation, CallbackInfo ci) {
+        if (mindOfTheColony$citizenBackground != null) {
+            long currentTick = 0;
+            IColony colony = getColony();
+            if (colony != null && colony.getWorld() != null) {
+                currentTick = colony.getWorld().getGameTime();
+            }
+
+            TraitModifiers modifiers = mindOfTheColony$citizenBackground.getModifiers(
+                mindOfTheColony$temporaryTraits,
+                mindOfTheColony$temporaryModifiers,
+                currentTick
+            );
+            double foodConsumption = modifiers.foodConsumption();
+            if (foodConsumption > 0 && foodConsumption != 1.0) {
+                // Apply additional decrease based on trait modifier
+                // If foodConsumption is 1.3, we need to decrease by an extra 30%
+                // If foodConsumption is 0.75, we need to add back 25%
+                CitizenData self = (CitizenData)(Object)this;
+                double configModifier = com.minecolonies.core.MineColonies.getConfig().getServer().foodModifier.get();
+                double baseDecrease = Math.abs(extraSaturation * configModifier);
+                double additionalChange = baseDecrease * (foodConsumption - 1.0);
+
+                // Access saturation field via reflection or direct field access
+                // Since we're in a mixin, we can shadow the field
+                mindOfTheColony$adjustSaturation(-additionalChange);
+            }
+        }
+    }
+
+    @Unique
+    private void mindOfTheColony$adjustSaturation(double amount) {
+        CitizenData self = (CitizenData)(Object)this;
+        // We need to access the saturation field - let's use the increase/decrease methods
+        if (amount > 0) {
+            self.increaseSaturation(amount);
+        } else if (amount < 0) {
+            // For negative, we can't directly decrease again without looping
+            // Let's just use reflection to access the field
+            try {
+                java.lang.reflect.Field satField = CitizenData.class.getDeclaredField("saturation");
+                satField.setAccessible(true);
+                double currentSat = satField.getDouble(self);
+                satField.setDouble(self, Math.max(0, currentSat + amount));
+            } catch (Exception e) {
+                // Ignore - not critical
+            }
+        }
+    }
+
+    /**
+     * Serialize trait modifiers to network for client-side display.
+     */
+    @Inject(method = "serializeViewNetworkData", at = @At("TAIL"), remap = false)
+    private void onSerializeViewNetworkData(RegistryFriendlyByteBuf buf, CallbackInfo ci) {
+        if (mindOfTheColony$citizenBackground != null) {
+            buf.writeBoolean(true);
+
+            long currentTick = 0;
+            IColony colony = getColony();
+            if (colony != null && colony.getWorld() != null) {
+                currentTick = colony.getWorld().getGameTime();
+            }
+
+            TraitModifiers modifiers = mindOfTheColony$citizenBackground.getModifiers(
+                mindOfTheColony$temporaryTraits,
+                mindOfTheColony$temporaryModifiers,
+                currentTick
+            );
+
+            buf.writeDouble(modifiers.diseaseRate());
+            buf.writeDouble(modifiers.contactDiseaseRate());
+            buf.writeDouble(modifiers.happinessBase());
+            buf.writeDouble(modifiers.happinessDecayRate());
+            buf.writeDouble(modifiers.workSpeed());
+            buf.writeDouble(modifiers.foodConsumption());
+
+            // Write skill bonuses
+            var skillBonuses = modifiers.skillBonuses();
+            buf.writeInt(skillBonuses.size());
+            for (var entry : skillBonuses.entrySet()) {
+                buf.writeUtf(entry.getKey());
+                buf.writeInt(entry.getValue());
+            }
+        } else {
+            buf.writeBoolean(false);
+        }
     }
 }

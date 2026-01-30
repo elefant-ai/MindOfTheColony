@@ -3,15 +3,24 @@ package com.goodbird.mindofthecolony.background;
 import com.goodbird.mindofthecolony.effect.TemporaryModifier;
 import com.goodbird.mindofthecolony.effect.TemporaryTrait;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Calculates combined modifiers from multiple traits.
  * Multiplicative modifiers are multiplied together.
  * Additive modifiers are summed.
+ * Skill bonuses are summed as integers.
  */
 public final class TraitModifierCalculator {
+
+    private static final Set<String> SKILL_NAMES = Set.of(
+        "athletics", "dexterity", "strength", "agility",
+        "stamina", "mana", "adaptability", "focus",
+        "creativity", "knowledge", "intelligence"
+    );
 
     private TraitModifierCalculator() {}
 
@@ -42,6 +51,7 @@ public final class TraitModifierCalculator {
         double happinessDecayRate = 1.0;
         double workSpeed = 1.0;
         double foodConsumption = 1.0;
+        Map<String, Integer> skillBonuses = new HashMap<>();
 
         // Apply permanent traits
         for (String traitId : permanentTraitIds) {
@@ -57,6 +67,9 @@ public final class TraitModifierCalculator {
             happinessDecayRate *= mods.getOrDefault("happinessDecayRate", 1.0);
             workSpeed *= mods.getOrDefault("workSpeed", 1.0);
             foodConsumption *= mods.getOrDefault("foodConsumption", 1.0);
+
+            // Apply skill bonuses
+            applySkillBonuses(mods, skillBonuses);
         }
 
         // Apply temporary traits (look up trait definitions)
@@ -75,6 +88,9 @@ public final class TraitModifierCalculator {
             happinessDecayRate *= mods.getOrDefault("happinessDecayRate", 1.0);
             workSpeed *= mods.getOrDefault("workSpeed", 1.0);
             foodConsumption *= mods.getOrDefault("foodConsumption", 1.0);
+
+            // Apply skill bonuses from temporary traits
+            applySkillBonuses(mods, skillBonuses);
         }
 
         // Apply direct temporary modifiers (with decay support)
@@ -91,6 +107,12 @@ public final class TraitModifierCalculator {
                 case "happinessDecayRate" -> happinessDecayRate *= value;
                 case "workSpeed" -> workSpeed *= value;
                 case "foodConsumption" -> foodConsumption *= value;
+                default -> {
+                    // Check if it's a skill modifier
+                    if (isSkillModifier(type)) {
+                        skillBonuses.merge(type.toLowerCase(), (int) value, Integer::sum);
+                    }
+                }
             }
         }
 
@@ -100,7 +122,27 @@ public final class TraitModifierCalculator {
             happinessBase,
             happinessDecayRate,
             workSpeed,
-            foodConsumption
+            foodConsumption,
+            Map.copyOf(skillBonuses)
         );
+    }
+
+    /**
+     * Check if a modifier key is a skill name.
+     */
+    private static boolean isSkillModifier(String key) {
+        return SKILL_NAMES.contains(key.toLowerCase());
+    }
+
+    /**
+     * Apply skill bonuses from a trait's modifiers map.
+     */
+    private static void applySkillBonuses(Map<String, Double> mods, Map<String, Integer> skillBonuses) {
+        for (Map.Entry<String, Double> entry : mods.entrySet()) {
+            String key = entry.getKey().toLowerCase();
+            if (isSkillModifier(key)) {
+                skillBonuses.merge(key, entry.getValue().intValue(), Integer::sum);
+            }
+        }
     }
 }
