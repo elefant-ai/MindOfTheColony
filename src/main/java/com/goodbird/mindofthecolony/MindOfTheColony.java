@@ -2,6 +2,7 @@ package com.goodbird.mindofthecolony;
 
 import com.goodbird.mindofthecolony.command.MotcCommand;
 import com.goodbird.mindofthecolony.config.BackgroundConfigLoader;
+import com.goodbird.mindofthecolony.config.DiseaseConfig;
 import com.goodbird.mindofthecolony.config.ModSettings;
 import com.goodbird.mindofthecolony.event.NpcEventHandler;
 import com.goodbird.mindofthecolony.network.ModNetworking;
@@ -36,15 +37,16 @@ public class MindOfTheColony {
         // Register command handler
         NeoForge.EVENT_BUS.register(MotcCommand.class);
 
-        // Register TOML config
+        // Register TOML configs
         modContainer.registerConfig(ModConfig.Type.COMMON, ModSettings.SPEC, "mindofthecolony/settings.toml");
+        modContainer.registerConfig(ModConfig.Type.COMMON, DiseaseConfig.SPEC, "mindofthecolony/diseases.toml");
 
         LOGGER.info("Mind of the Colony initialized");
     }
 
     @SubscribeEvent
     public void onServerStarted(ServerStartedEvent event) {
-        // Load background definitions from JSON config
+        // Load JSON config for backgrounds
         BackgroundConfigLoader.loadOrCreate();
 
         // Initialize java-npc library and register event listener
