@@ -25,10 +25,13 @@
                     <text id="permanentTraits" size="355 50" pos="0 87" color="black" textwrap="true"/>
 
                     <text id="tempTraitsLabel" size="360 11" pos="0 140" color="black" style="bold" label="Temporary Traits:"/>
-                    <text id="temporaryTraits" size="355 50" pos="0 152" color="orange" textwrap="true"/>
+                    <text id="temporaryTraits" size="355 40" pos="0 152" color="orange" textwrap="true"/>
 
-                    <text id="modifiersLabel" size="360 11" pos="0 205" color="black" style="bold" label="Active Modifiers:"/>
-                    <text id="modifiers" size="355 60" pos="0 217" color="blue" textwrap="true"/>
+                    <text id="permEffectsLabel" size="360 11" pos="0 195" color="black" style="bold" label="Permanent Effects:"/>
+                    <text id="permanentEffects" size="355 80" pos="0 207" color="green" textwrap="true"/>
+
+                    <text id="tempEffectsLabel" size="360 11" pos="0 290" color="black" style="bold" label="Temporary Effects:"/>
+                    <text id="temporaryEffects" size="355 80" pos="0 302" color="orange" textwrap="true"/>
                 </view>
             </scrollgroup>
         </view>

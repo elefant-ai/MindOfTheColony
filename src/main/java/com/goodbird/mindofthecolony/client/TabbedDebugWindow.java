@@ -176,12 +176,20 @@ public class TabbedDebugWindow extends AbstractWindowSkeleton {
                 temporaryTraitsText.setText(Component.literal("None"));
             }
 
-            // Modifiers
-            Text modifiersText = findPaneOfTypeByID("modifiers", Text.class);
-            if (data.activeModifiers() != null && !data.activeModifiers().isEmpty()) {
-                modifiersText.setText(Component.literal(String.join("\n", data.activeModifiers())));
+            // Permanent Effects
+            Text permanentEffectsText = findPaneOfTypeByID("permanentEffects", Text.class);
+            if (data.permanentEffects() != null && !data.permanentEffects().isEmpty()) {
+                permanentEffectsText.setText(Component.literal(String.join("\n", data.permanentEffects())));
             } else {
-                modifiersText.setText(Component.literal("None"));
+                permanentEffectsText.setText(Component.literal("None"));
+            }
+
+            // Temporary Effects
+            Text temporaryEffectsText = findPaneOfTypeByID("temporaryEffects", Text.class);
+            if (data.temporaryEffects() != null && !data.temporaryEffects().isEmpty()) {
+                temporaryEffectsText.setText(Component.literal(String.join("\n", data.temporaryEffects())));
+            } else {
+                temporaryEffectsText.setText(Component.literal("None"));
             }
         } else {
             // No data yet
@@ -191,7 +199,9 @@ public class TabbedDebugWindow extends AbstractWindowSkeleton {
                 .setText(Component.literal("Loading..."));
             findPaneOfTypeByID("temporaryTraits", Text.class)
                 .setText(Component.literal("Loading..."));
-            findPaneOfTypeByID("modifiers", Text.class)
+            findPaneOfTypeByID("permanentEffects", Text.class)
+                .setText(Component.literal("Loading..."));
+            findPaneOfTypeByID("temporaryEffects", Text.class)
                 .setText(Component.literal("Loading..."));
         }
     }

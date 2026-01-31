@@ -9,5 +9,6 @@ public record ClientBackgroundData(
     String backstory,
     List<String> permanentTraits,
     List<String> temporaryTraits,
-    List<String> activeModifiers
+    List<String> permanentEffects,
+    List<String> temporaryEffects
 ) {}

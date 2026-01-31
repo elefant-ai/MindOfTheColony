@@ -23,8 +23,9 @@ public class ClientBackgroundCache {
      * Store structured background data from individual components.
      */
     public static void putData(int citizenId, String backstory, List<String> permanentTraits,
-                               List<String> temporaryTraits, List<String> activeModifiers) {
-        cache.put(citizenId, new ClientBackgroundData(backstory, permanentTraits, temporaryTraits, activeModifiers));
+                               List<String> temporaryTraits, List<String> permanentEffects,
+                               List<String> temporaryEffects) {
+        cache.put(citizenId, new ClientBackgroundData(backstory, permanentTraits, temporaryTraits, permanentEffects, temporaryEffects));
     }
 
     /**
