@@ -26,6 +26,8 @@ public class CitizenNpcBridge {
     private final ICitizenData citizenData;
     private final String gameId;
     private final String shortName;
+    @Nullable
+    private final UUID existingNpcId;
 
     private NpcHandle npcHandle;
     private CompletableFuture<UUID> pendingSpawn;
@@ -35,9 +37,10 @@ public class CitizenNpcBridge {
     private static long lastHeartbeatTime = System.nanoTime();
     private static final long HEARTBEAT_INTERVAL_NS = 60_000_000_000L; // 60 seconds
 
-    public CitizenNpcBridge(ICitizenData citizenData, String gameId) {
+    public CitizenNpcBridge(ICitizenData citizenData, String gameId, @Nullable UUID existingNpcId) {
         this.citizenData = citizenData;
         this.gameId = gameId;
+        this.existingNpcId = existingNpcId;
         // Create a unique short name for the NPC
         this.shortName = "citizen_" + citizenData.getColony().getID() + "_" + citizenData.getId();
     }
@@ -50,16 +53,22 @@ public class CitizenNpcBridge {
         String systemPrompt = generateSystemPrompt();
         String description = generateCharacterDescription();
 
-        pendingSpawn = Player2NpcLib.builder(shortName)
+        var builder = Player2NpcLib.builder(shortName)
             .name(citizenData.getName())
             .description(description)
-            .systemPrompt(systemPrompt)
-            .keepGameState(false) // Fresh conversation each session
-            .spawn(gameId)
+            .systemPrompt(systemPrompt);
+
+        // If we have an existing NPC ID, resume from it to restore memories
+        if (existingNpcId != null) {
+            builder.resumeFrom(existingNpcId);
+            LOGGER.info("Resuming NPC from existing ID {} for citizen: {}", existingNpcId, citizenData.getName());
+        }
+
+        pendingSpawn = builder.spawn(gameId)
             .thenApply(handle -> {
                 this.npcHandle = handle;
                 this.ready = true;
-                LOGGER.info("NPC handle ready for citizen: {}", citizenData.getName());
+                LOGGER.info("NPC handle ready for citizen: {} (npcId: {})", citizenData.getName(), handle.getId());
                 return handle.getId();
             });
 

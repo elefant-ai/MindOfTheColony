@@ -52,8 +52,7 @@ public class CitizenNpcManager {
      * Should be called when the server starts.
      */
     public void initialize() {
-        // Generate a unique game ID for this session
-        this.gameId = "minecolonies_" + System.currentTimeMillis();
+        this.gameId = "MindOfTheColony";
         LOGGER.info("CitizenNpcManager initialized with gameId: {}", gameId);
     }
 
@@ -81,20 +80,22 @@ public class CitizenNpcManager {
             }
         }
 
-        // Get any saved conversation history NBT
-        CompoundTag historyNBT = null;
+        // Get any saved NPC ID to resume memories
+        UUID existingNpcId = null;
         if (citizenData instanceof IExtendedCitizenData extData) {
-            historyNBT = extData.getLoadedConversationHistoryNBT();
+            existingNpcId = extData.getNpcId();
         }
 
         // Create bridge and spawn NPC
-        CitizenNpcBridge bridge = new CitizenNpcBridge(citizenData, gameId);
+        CitizenNpcBridge bridge = new CitizenNpcBridge(citizenData, gameId, existingNpcId);
         bridges.put(citizenData.getId(), bridge);
 
         // Spawn the NPC asynchronously
         bridge.spawn().thenAccept(npcId -> {
             if (npcId != null) {
                 npcToCitizen.put(npcId, citizenData.getId());
+                // Save the NPC ID to citizen data for persistence
+                saveNpcId(citizenData, npcId);
                 LOGGER.info("NPC spawned for citizen: {} (npcId: {})", citizenData.getName(), npcId);
             }
         }).exceptionally(ex -> {
@@ -103,6 +104,16 @@ public class CitizenNpcManager {
         });
 
         LOGGER.info("AI Bridge created for citizen: {}", citizenData.getName());
+    }
+
+    /**
+     * Saves the NPC ID to the citizen data for persistence.
+     */
+    private void saveNpcId(ICitizenData citizenData, UUID npcId) {
+        if (citizenData instanceof IExtendedCitizenData extData) {
+            extData.setNpcId(npcId);
+            citizenData.markDirty(0);
+        }
     }
 
     /**
