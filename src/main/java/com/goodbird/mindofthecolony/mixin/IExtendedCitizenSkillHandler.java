@@ -16,4 +16,10 @@ public interface IExtendedCitizenSkillHandler {
      * Get the citizen that owns this skill handler.
      */
     ICitizenData mindOfTheColony$getCitizen();
+
+    /**
+     * Apply a skill bonus directly to the skill level.
+     * Positive bonus increases the skill, negative decreases it.
+     */
+    void mindOfTheColony$applySkillBonus(String skillName, int bonus);
 }

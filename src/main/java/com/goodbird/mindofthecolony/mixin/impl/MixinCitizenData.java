@@ -1,7 +1,10 @@
 package com.goodbird.mindofthecolony.mixin.impl;
 
 import com.goodbird.mindofthecolony.background.CitizenBackground;
+import com.goodbird.mindofthecolony.background.TraitDefinition;
+import com.goodbird.mindofthecolony.background.TraitModifierCalculator;
 import com.goodbird.mindofthecolony.background.TraitModifiers;
+import com.goodbird.mindofthecolony.background.TraitRegistry;
 import com.goodbird.mindofthecolony.config.DiseaseConfig;
 import com.goodbird.mindofthecolony.effect.TemporaryModifier;
 import com.goodbird.mindofthecolony.effect.TemporaryTrait;
@@ -19,6 +22,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
@@ -170,19 +174,100 @@ public abstract class MixinCitizenData implements IExtendedCitizenData {
 
     @Override
     public void addTemporaryTrait(TemporaryTrait trait) {
-        // Remove existing trait with same ID if present
-        mindOfTheColony$temporaryTraits.removeIf(t -> t.getTraitId().equals(trait.getTraitId()));
+        // Remove existing trait with same ID if present (and its skill bonuses)
+        TemporaryTrait existing = mindOfTheColony$temporaryTraits.stream()
+            .filter(t -> t.getTraitId().equals(trait.getTraitId()))
+            .findFirst()
+            .orElse(null);
+        if (existing != null) {
+            mindOfTheColony$removeTraitSkillBonuses(existing.getTraitId());
+            mindOfTheColony$temporaryTraits.remove(existing);
+        }
+
         mindOfTheColony$temporaryTraits.add(trait);
+
+        // Apply skill bonuses from the new trait
+        mindOfTheColony$applyTraitSkillBonuses(trait.getTraitId());
     }
 
     @Override
     public void removeTemporaryTrait(String traitId) {
-        mindOfTheColony$temporaryTraits.removeIf(t -> t.getTraitId().equals(traitId));
+        boolean removed = mindOfTheColony$temporaryTraits.removeIf(t -> t.getTraitId().equals(traitId));
+        if (removed) {
+            mindOfTheColony$removeTraitSkillBonuses(traitId);
+        }
     }
 
     @Override
     public void removeExpiredTraits(long currentTick) {
+        // Collect expired traits first so we can remove their bonuses
+        List<TemporaryTrait> expired = mindOfTheColony$temporaryTraits.stream()
+            .filter(trait -> trait.isExpired(currentTick))
+            .toList();
+
+        for (TemporaryTrait trait : expired) {
+            mindOfTheColony$removeTraitSkillBonuses(trait.getTraitId());
+        }
+
         mindOfTheColony$temporaryTraits.removeIf(trait -> trait.isExpired(currentTick));
+    }
+
+    /**
+     * Apply skill bonuses from a trait to the citizen's skill handler.
+     */
+    @Unique
+    private void mindOfTheColony$applyTraitSkillBonuses(String traitId) {
+        TraitDefinition trait = TraitRegistry.getTrait(traitId);
+        if (trait == null || trait.modifiers() == null) {
+            return;
+        }
+
+        boolean appliedAny = false;
+        if (getCitizenSkillHandler() instanceof IExtendedCitizenSkillHandler extHandler) {
+            for (Map.Entry<String, Double> entry : trait.modifiers().entrySet()) {
+                String key = entry.getKey().toLowerCase();
+                if (TraitModifierCalculator.isSkillModifier(key)) {
+                    int bonus = entry.getValue().intValue();
+                    extHandler.mindOfTheColony$applySkillBonus(key, bonus);
+                    appliedAny = true;
+                }
+            }
+        }
+
+        // Trigger sync to client
+        if (appliedAny) {
+            CitizenData self = (CitizenData)(Object)this;
+            self.markDirty(0);
+        }
+    }
+
+    /**
+     * Remove skill bonuses from a trait from the citizen's skill handler.
+     */
+    @Unique
+    private void mindOfTheColony$removeTraitSkillBonuses(String traitId) {
+        TraitDefinition trait = TraitRegistry.getTrait(traitId);
+        if (trait == null || trait.modifiers() == null) {
+            return;
+        }
+
+        boolean removedAny = false;
+        if (getCitizenSkillHandler() instanceof IExtendedCitizenSkillHandler extHandler) {
+            for (Map.Entry<String, Double> entry : trait.modifiers().entrySet()) {
+                String key = entry.getKey().toLowerCase();
+                if (TraitModifierCalculator.isSkillModifier(key)) {
+                    int bonus = entry.getValue().intValue();
+                    extHandler.mindOfTheColony$applySkillBonus(key, -bonus); // Negative to remove
+                    removedAny = true;
+                }
+            }
+        }
+
+        // Trigger sync to client
+        if (removedAny) {
+            CitizenData self = (CitizenData)(Object)this;
+            self.markDirty(0);
+        }
     }
 
     @Override
@@ -307,7 +392,12 @@ public abstract class MixinCitizenData implements IExtendedCitizenData {
      */
     @Inject(method = "serializeViewNetworkData", at = @At("TAIL"), remap = false)
     private void onSerializeViewNetworkData(RegistryFriendlyByteBuf buf, CallbackInfo ci) {
-        if (mindOfTheColony$citizenBackground != null) {
+        // Send modifiers if we have a background OR temporary traits/modifiers
+        boolean hasData = mindOfTheColony$citizenBackground != null ||
+                          !mindOfTheColony$temporaryTraits.isEmpty() ||
+                          !mindOfTheColony$temporaryModifiers.isEmpty();
+
+        if (hasData) {
             buf.writeBoolean(true);
 
             long currentTick = 0;
@@ -316,11 +406,22 @@ public abstract class MixinCitizenData implements IExtendedCitizenData {
                 currentTick = colony.getWorld().getGameTime();
             }
 
-            TraitModifiers modifiers = mindOfTheColony$citizenBackground.getModifiers(
-                mindOfTheColony$temporaryTraits,
-                mindOfTheColony$temporaryModifiers,
-                currentTick
-            );
+            TraitModifiers modifiers;
+            if (mindOfTheColony$citizenBackground != null) {
+                modifiers = mindOfTheColony$citizenBackground.getModifiers(
+                    mindOfTheColony$temporaryTraits,
+                    mindOfTheColony$temporaryModifiers,
+                    currentTick
+                );
+            } else {
+                // No permanent background, but calculate from temporary traits/modifiers only
+                modifiers = com.goodbird.mindofthecolony.background.TraitModifierCalculator.calculate(
+                    java.util.List.of(),  // No permanent traits
+                    mindOfTheColony$temporaryTraits,
+                    mindOfTheColony$temporaryModifiers,
+                    currentTick
+                );
+            }
 
             buf.writeDouble(modifiers.diseaseRate());
             buf.writeDouble(modifiers.contactDiseaseRate());

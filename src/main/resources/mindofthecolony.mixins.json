@@ -15,8 +15,7 @@
   "client": [
     "MixinMainWindowCitizen",
     "MixinAbstractWindowCitizen",
-    "MixinCitizenDataView",
-    "MixinCitizenWindowUtils"
+    "MixinCitizenDataView"
   ],
   "minVersion": "0.8"
 }

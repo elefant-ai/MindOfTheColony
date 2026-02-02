@@ -130,7 +130,7 @@ public final class TraitModifierCalculator {
     /**
      * Check if a modifier key is a skill name.
      */
-    private static boolean isSkillModifier(String key) {
+    public static boolean isSkillModifier(String key) {
         return SKILL_NAMES.contains(key.toLowerCase());
     }
 

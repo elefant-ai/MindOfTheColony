@@ -2,8 +2,12 @@ package com.goodbird.mindofthecolony.command;
 
 import com.goodbird.mindofthecolony.CitizenNpcManager;
 import com.goodbird.mindofthecolony.background.BackgroundGenerationService;
+import com.goodbird.mindofthecolony.background.CitizenBackground;
+import com.goodbird.mindofthecolony.background.TraitDefinition;
+import com.goodbird.mindofthecolony.background.TraitRegistry;
 import com.goodbird.mindofthecolony.bridge.CitizenNpcBridge;
 import com.goodbird.mindofthecolony.config.ModSettings;
+import com.goodbird.mindofthecolony.effect.TemporaryTrait;
 import com.goodbird.mindofthecolony.mixin.IExtendedCitizenData;
 import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.ICivilianData;
@@ -11,6 +15,8 @@ import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.IColonyManager;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.suggestion.SuggestionProvider;
+import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -21,6 +27,45 @@ import org.slf4j.LoggerFactory;
 
 public class MotcCommand {
     private static final Logger LOGGER = LoggerFactory.getLogger(MotcCommand.class);
+
+    // Suggestion provider for colony IDs
+    private static final SuggestionProvider<CommandSourceStack> SUGGEST_COLONIES = (context, builder) -> {
+        if (context.getSource().getPlayer() != null) {
+            ServerPlayer player = context.getSource().getPlayer();
+            IColonyManager.getInstance().getColonies(player.level()).forEach(colony ->
+                builder.suggest(colony.getID(), Component.literal(colony.getName())));
+        }
+        return builder.buildFuture();
+    };
+
+    // Suggestion provider for citizen IDs (depends on colonyId argument)
+    private static final SuggestionProvider<CommandSourceStack> SUGGEST_CITIZENS = (context, builder) -> {
+        if (context.getSource().getPlayer() != null) {
+            try {
+                int colonyId = IntegerArgumentType.getInteger(context, "colonyId");
+                ServerPlayer player = context.getSource().getPlayer();
+                IColony colony = IColonyManager.getInstance().getColonyByDimension(colonyId, player.level().dimension());
+                if (colony != null) {
+                    // Add citizens
+                    colony.getCitizenManager().getCitizens().forEach(citizen ->
+                        builder.suggest(citizen.getId(), Component.literal(citizen.getName())));
+                    // Add visitors
+                    colony.getVisitorManager().getCivilianDataMap().values().forEach(visitor ->
+                        builder.suggest(visitor.getId(), Component.literal(visitor.getName())));
+                }
+            } catch (IllegalArgumentException ignored) {
+                // colonyId not yet specified
+            }
+        }
+        return builder.buildFuture();
+    };
+
+    // Suggestion provider for trait IDs
+    private static final SuggestionProvider<CommandSourceStack> SUGGEST_TRAITS = (context, builder) -> {
+        TraitRegistry.getAllTraits().forEach(trait ->
+            builder.suggest(trait.id(), Component.literal(trait.displayText().substring(0, Math.min(50, trait.displayText().length())))));
+        return builder.buildFuture();
+    };
 
     @SubscribeEvent
     public static void onRegisterCommands(RegisterCommandsEvent event) {
@@ -51,7 +96,9 @@ public class MotcCommand {
                 )
                 .then(Commands.literal("regenbackground")
                     .then(Commands.argument("colonyId", IntegerArgumentType.integer(1))
+                        .suggests(SUGGEST_COLONIES)
                         .then(Commands.argument("citizenId", IntegerArgumentType.integer(1))
+                            .suggests(SUGGEST_CITIZENS)
                             .executes(ctx -> {
                                 int colonyId = IntegerArgumentType.getInteger(ctx, "colonyId");
                                 int citizenId = IntegerArgumentType.getInteger(ctx, "citizenId");
@@ -67,6 +114,7 @@ public class MotcCommand {
                 )
                 .then(Commands.literal("regenall")
                     .then(Commands.argument("colonyId", IntegerArgumentType.integer(1))
+                        .suggests(SUGGEST_COLONIES)
                         .executes(ctx -> {
                             int colonyId = IntegerArgumentType.getInteger(ctx, "colonyId");
                             return regenAllBackgrounds(ctx.getSource().getPlayer(), colonyId);
@@ -80,6 +128,7 @@ public class MotcCommand {
                 )
                 .then(Commands.literal("regenvisitors")
                     .then(Commands.argument("colonyId", IntegerArgumentType.integer(1))
+                        .suggests(SUGGEST_COLONIES)
                         .executes(ctx -> {
                             int colonyId = IntegerArgumentType.getInteger(ctx, "colonyId");
                             return regenAllVisitorBackgrounds(ctx.getSource().getPlayer(), colonyId);
@@ -89,6 +138,66 @@ public class MotcCommand {
                         ctx.getSource().sendFailure(Component.literal(
                             "Usage: /motc regenvisitors <colonyId>"));
                         return 0;
+                    })
+                )
+                .then(Commands.literal("addtrait")
+                    .then(Commands.argument("colonyId", IntegerArgumentType.integer(1))
+                        .suggests(SUGGEST_COLONIES)
+                        .then(Commands.argument("citizenId", IntegerArgumentType.integer())
+                            .suggests(SUGGEST_CITIZENS)
+                            .then(Commands.argument("traitId", StringArgumentType.word())
+                                .suggests(SUGGEST_TRAITS)
+                                // With duration (temporary trait)
+                                .then(Commands.argument("durationSeconds", IntegerArgumentType.integer(1))
+                                    .executes(ctx -> {
+                                        int colonyId = IntegerArgumentType.getInteger(ctx, "colonyId");
+                                        int citizenId = IntegerArgumentType.getInteger(ctx, "citizenId");
+                                        String traitId = StringArgumentType.getString(ctx, "traitId");
+                                        int durationSeconds = IntegerArgumentType.getInteger(ctx, "durationSeconds");
+                                        return addTrait(ctx.getSource().getPlayer(), colonyId, citizenId, traitId, durationSeconds);
+                                    })
+                                )
+                                // Without duration (permanent trait)
+                                .executes(ctx -> {
+                                    int colonyId = IntegerArgumentType.getInteger(ctx, "colonyId");
+                                    int citizenId = IntegerArgumentType.getInteger(ctx, "citizenId");
+                                    String traitId = StringArgumentType.getString(ctx, "traitId");
+                                    return addTrait(ctx.getSource().getPlayer(), colonyId, citizenId, traitId, -1);
+                                })
+                            )
+                        )
+                    )
+                    .executes(ctx -> {
+                        ctx.getSource().sendFailure(Component.literal(
+                            "Usage: /motc addtrait <colonyId> <citizenId> <traitId> [durationSeconds]"));
+                        return 0;
+                    })
+                )
+                .then(Commands.literal("removetrait")
+                    .then(Commands.argument("colonyId", IntegerArgumentType.integer(1))
+                        .suggests(SUGGEST_COLONIES)
+                        .then(Commands.argument("citizenId", IntegerArgumentType.integer())
+                            .suggests(SUGGEST_CITIZENS)
+                            .then(Commands.argument("traitId", StringArgumentType.word())
+                                .suggests(SUGGEST_TRAITS)
+                                .executes(ctx -> {
+                                    int colonyId = IntegerArgumentType.getInteger(ctx, "colonyId");
+                                    int citizenId = IntegerArgumentType.getInteger(ctx, "citizenId");
+                                    String traitId = StringArgumentType.getString(ctx, "traitId");
+                                    return removeTrait(ctx.getSource().getPlayer(), colonyId, citizenId, traitId);
+                                })
+                            )
+                        )
+                    )
+                    .executes(ctx -> {
+                        ctx.getSource().sendFailure(Component.literal(
+                            "Usage: /motc removetrait <colonyId> <citizenId> <traitId>"));
+                        return 0;
+                    })
+                )
+                .then(Commands.literal("listtraits")
+                    .executes(ctx -> {
+                        return listTraits(ctx.getSource().getPlayer());
                     })
                 )
         );
@@ -245,5 +354,139 @@ public class MotcCommand {
             "Started background regeneration for " + count + " visitors in colony " + colonyId));
 
         return count;
+    }
+
+    private static int addTrait(ServerPlayer player, int colonyId, int citizenId, String traitId, int durationSeconds) {
+        if (player == null) {
+            return 0;
+        }
+
+        IColony colony = IColonyManager.getInstance().getColonyByDimension(colonyId, player.level().dimension());
+        if (colony == null) {
+            player.sendSystemMessage(Component.literal("Colony not found: " + colonyId));
+            return 0;
+        }
+
+        // Try citizen manager first, then visitor manager
+        ICitizenData citizenData = colony.getCitizenManager().getCivilian(citizenId);
+        if (citizenData == null) {
+            citizenData = (ICitizenData) colony.getVisitorManager().getCivilian(citizenId);
+        }
+        if (citizenData == null) {
+            player.sendSystemMessage(Component.literal("Citizen not found: " + citizenId));
+            return 0;
+        }
+
+        if (!(citizenData instanceof IExtendedCitizenData extData)) {
+            player.sendSystemMessage(Component.literal("Citizen data not extended (mixin issue)"));
+            return 0;
+        }
+
+        // Validate trait exists
+        TraitDefinition traitDef = TraitRegistry.getTrait(traitId);
+        if (traitDef == null) {
+            player.sendSystemMessage(Component.literal("Unknown trait: " + traitId + ". Use /motc listtraits to see available traits."));
+            return 0;
+        }
+
+        String citizenName = citizenData.getName();
+
+        if (durationSeconds > 0) {
+            // Add as temporary trait
+            int durationTicks = durationSeconds * 20;
+            long currentTick = player.level().getGameTime();
+            TemporaryTrait tempTrait = new TemporaryTrait(traitId, "command", currentTick, durationTicks);
+            extData.addTemporaryTrait(tempTrait);
+            player.sendSystemMessage(Component.literal(
+                "Added temporary trait '" + traitId + "' to " + citizenName + " for " + durationSeconds + " seconds"));
+        } else {
+            // Add as permanent trait
+            CitizenBackground bg = extData.getCitizenBackground();
+            if (bg == null || !bg.isInitialized()) {
+                player.sendSystemMessage(Component.literal("Citizen has no background initialized. Use /motc regenbackground first."));
+                return 0;
+            }
+            if (bg.getTraits().contains(traitId)) {
+                player.sendSystemMessage(Component.literal(citizenName + " already has permanent trait: " + traitId));
+                return 0;
+            }
+            bg.addTrait(traitId);
+            player.sendSystemMessage(Component.literal(
+                "Added permanent trait '" + traitId + "' to " + citizenName));
+        }
+
+        return 1;
+    }
+
+    private static int removeTrait(ServerPlayer player, int colonyId, int citizenId, String traitId) {
+        if (player == null) {
+            return 0;
+        }
+
+        IColony colony = IColonyManager.getInstance().getColonyByDimension(colonyId, player.level().dimension());
+        if (colony == null) {
+            player.sendSystemMessage(Component.literal("Colony not found: " + colonyId));
+            return 0;
+        }
+
+        // Try citizen manager first, then visitor manager
+        ICitizenData citizenData = colony.getCitizenManager().getCivilian(citizenId);
+        if (citizenData == null) {
+            citizenData = (ICitizenData) colony.getVisitorManager().getCivilian(citizenId);
+        }
+        if (citizenData == null) {
+            player.sendSystemMessage(Component.literal("Citizen not found: " + citizenId));
+            return 0;
+        }
+
+        if (!(citizenData instanceof IExtendedCitizenData extData)) {
+            player.sendSystemMessage(Component.literal("Citizen data not extended (mixin issue)"));
+            return 0;
+        }
+
+        String citizenName = citizenData.getName();
+        boolean removed = false;
+
+        // Try removing temporary trait first
+        if (extData.hasTemporaryTrait(traitId)) {
+            extData.removeTemporaryTrait(traitId);
+            player.sendSystemMessage(Component.literal(
+                "Removed temporary trait '" + traitId + "' from " + citizenName));
+            removed = true;
+        }
+
+        // Also try removing permanent trait
+        CitizenBackground bg = extData.getCitizenBackground();
+        if (bg != null && bg.isInitialized() && bg.getTraits().contains(traitId)) {
+            bg.getTraits().remove(traitId);
+            player.sendSystemMessage(Component.literal(
+                "Removed permanent trait '" + traitId + "' from " + citizenName));
+            removed = true;
+        }
+
+        if (!removed) {
+            player.sendSystemMessage(Component.literal(
+                citizenName + " does not have trait: " + traitId));
+            return 0;
+        }
+
+        return 1;
+    }
+
+    private static int listTraits(ServerPlayer player) {
+        if (player == null) {
+            return 0;
+        }
+
+        StringBuilder sb = new StringBuilder("Available traits:\n");
+        for (TraitDefinition trait : TraitRegistry.getAllTraits()) {
+            sb.append("- ").append(trait.id());
+            if (trait.temporaryOnly()) {
+                sb.append(" (temp only)");
+            }
+            sb.append("\n");
+        }
+        player.sendSystemMessage(Component.literal(sb.toString()));
+        return 1;
     }
 }
