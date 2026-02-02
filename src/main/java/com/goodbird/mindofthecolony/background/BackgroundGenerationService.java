@@ -96,11 +96,12 @@ public class BackgroundGenerationService {
                 return null;
             });
 
-        // Timeout after 30 seconds and fall back to random generation
+        // Timeout after 30 seconds - do NOT fall back, let the error propagate
         return future.orTimeout(30, TimeUnit.SECONDS)
             .exceptionally(ex -> {
-                LOGGER.warn("Background generation timed out for {}, using fallback", citizenName);
-                return BackgroundGenerator.generate();
+                LOGGER.error("Background generation FAILED for {} - {}", citizenName, ex.getMessage());
+                // Re-throw to propagate the error to caller
+                throw new RuntimeException("Background generation failed for " + citizenName + ": " + ex.getMessage(), ex);
             });
     }
 

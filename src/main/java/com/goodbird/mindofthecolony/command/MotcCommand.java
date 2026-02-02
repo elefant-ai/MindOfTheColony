@@ -200,6 +200,28 @@ public class MotcCommand {
                         return listTraits(ctx.getSource().getPlayer());
                     })
                 )
+                .then(Commands.literal("genmissing")
+                    .then(Commands.argument("colonyId", IntegerArgumentType.integer(1))
+                        .suggests(SUGGEST_COLONIES)
+                        .executes(ctx -> {
+                            int colonyId = IntegerArgumentType.getInteger(ctx, "colonyId");
+                            return genMissingBackgrounds(ctx.getSource().getPlayer(), colonyId);
+                        })
+                    )
+                    .executes(ctx -> {
+                        // Run for all colonies
+                        return genMissingBackgroundsAll(ctx.getSource().getPlayer());
+                    })
+                )
+                .then(Commands.literal("status")
+                    .then(Commands.argument("colonyId", IntegerArgumentType.integer(1))
+                        .suggests(SUGGEST_COLONIES)
+                        .executes(ctx -> {
+                            int colonyId = IntegerArgumentType.getInteger(ctx, "colonyId");
+                            return showStatus(ctx.getSource().getPlayer(), colonyId);
+                        })
+                    )
+                )
         );
     }
 
@@ -487,6 +509,175 @@ public class MotcCommand {
             sb.append("\n");
         }
         player.sendSystemMessage(Component.literal(sb.toString()));
+        return 1;
+    }
+
+    private static int genMissingBackgrounds(ServerPlayer player, int colonyId) {
+        if (player == null) {
+            return 0;
+        }
+
+        IColony colony = IColonyManager.getInstance().getColonyByDimension(colonyId, player.level().dimension());
+        if (colony == null) {
+            player.sendSystemMessage(Component.literal("Colony not found: " + colonyId));
+            return 0;
+        }
+
+        String gameId = CitizenNpcManager.getInstance().getGameId();
+        if (gameId == null) {
+            CitizenNpcManager.getInstance().initialize();
+            gameId = CitizenNpcManager.getInstance().getGameId();
+        }
+
+        int missingCount = 0;
+        int totalCount = 0;
+
+        // Check citizens
+        for (ICitizenData citizenData : colony.getCitizenManager().getCitizens()) {
+            totalCount++;
+            if (citizenData instanceof IExtendedCitizenData extData) {
+                CitizenBackground bg = extData.getCitizenBackground();
+                if (bg == null || !bg.isInitialized()) {
+                    missingCount++;
+                    player.sendSystemMessage(Component.literal(
+                        "Generating background for citizen: " + citizenData.getName() +
+                        " (ID: " + citizenData.getId() + ", child: " + citizenData.isChild() + ")"));
+
+                    final String gid = gameId;
+                    BackgroundGenerationService.getInstance().generateBackground(citizenData, gid)
+                        .thenAccept(background -> {
+                            extData.setCitizenBackground(background);
+                            player.sendSystemMessage(Component.literal(
+                                "✓ Generated background for " + citizenData.getName() + ": " + background.getTraits()));
+                        })
+                        .exceptionally(ex -> {
+                            player.sendSystemMessage(Component.literal(
+                                "✗ Failed for " + citizenData.getName() + ": " + ex.getMessage()));
+                            return null;
+                        });
+                }
+            } else {
+                player.sendSystemMessage(Component.literal(
+                    "WARNING: Citizen " + citizenData.getName() + " is not IExtendedCitizenData (mixin not applied?)"));
+            }
+        }
+
+        // Check visitors
+        for (ICivilianData civilianData : colony.getVisitorManager().getCivilianDataMap().values()) {
+            totalCount++;
+            if (civilianData instanceof ICitizenData citizenData && civilianData instanceof IExtendedCitizenData extData) {
+                CitizenBackground bg = extData.getCitizenBackground();
+                if (bg == null || !bg.isInitialized()) {
+                    missingCount++;
+                    player.sendSystemMessage(Component.literal(
+                        "Generating background for visitor: " + citizenData.getName() + " (ID: " + citizenData.getId() + ")"));
+
+                    final String gid = gameId;
+                    BackgroundGenerationService.getInstance().generateBackground(citizenData, gid)
+                        .thenAccept(background -> {
+                            extData.setCitizenBackground(background);
+                            player.sendSystemMessage(Component.literal(
+                                "✓ Generated background for visitor " + citizenData.getName() + ": " + background.getTraits()));
+                        })
+                        .exceptionally(ex -> {
+                            player.sendSystemMessage(Component.literal(
+                                "✗ Failed for visitor " + citizenData.getName() + ": " + ex.getMessage()));
+                            return null;
+                        });
+                }
+            }
+        }
+
+        player.sendSystemMessage(Component.literal(
+            "Colony " + colonyId + ": " + missingCount + " missing out of " + totalCount + " total"));
+        return missingCount;
+    }
+
+    private static int genMissingBackgroundsAll(ServerPlayer player) {
+        if (player == null) {
+            return 0;
+        }
+
+        int total = 0;
+        for (IColony colony : IColonyManager.getInstance().getColonies(player.level())) {
+            total += genMissingBackgrounds(player, colony.getID());
+        }
+        return total;
+    }
+
+    private static int showStatus(ServerPlayer player, int colonyId) {
+        if (player == null) {
+            return 0;
+        }
+
+        IColony colony = IColonyManager.getInstance().getColonyByDimension(colonyId, player.level().dimension());
+        if (colony == null) {
+            player.sendSystemMessage(Component.literal("Colony not found: " + colonyId));
+            return 0;
+        }
+
+        player.sendSystemMessage(Component.literal("=== Colony " + colonyId + " Status ==="));
+
+        int withBg = 0;
+        int withoutBg = 0;
+
+        // Check citizens
+        for (ICitizenData citizenData : colony.getCitizenManager().getCitizens()) {
+            boolean hasBg = false;
+            String bgStatus = "NOT IExtendedCitizenData";
+
+            if (citizenData instanceof IExtendedCitizenData extData) {
+                CitizenBackground bg = extData.getCitizenBackground();
+                if (bg != null && bg.isInitialized()) {
+                    hasBg = true;
+                    bgStatus = "OK (" + bg.getTraits().size() + " traits)";
+                    withBg++;
+                } else if (bg != null) {
+                    bgStatus = "NOT INITIALIZED (backstory=" + (bg.getBackstory() == null ? "null" : "empty") + ")";
+                    withoutBg++;
+                } else {
+                    bgStatus = "NULL";
+                    withoutBg++;
+                }
+            } else {
+                withoutBg++;
+            }
+
+            String childStr = citizenData.isChild() ? " [CHILD]" : "";
+            player.sendSystemMessage(Component.literal(
+                (hasBg ? "✓ " : "✗ ") + citizenData.getName() + " (ID:" + citizenData.getId() + ")" + childStr + " - " + bgStatus));
+        }
+
+        // Check visitors
+        player.sendSystemMessage(Component.literal("--- Visitors ---"));
+        for (ICivilianData civilianData : colony.getVisitorManager().getCivilianDataMap().values()) {
+            boolean hasBg = false;
+            String bgStatus = "NOT IExtendedCitizenData";
+
+            if (civilianData instanceof IExtendedCitizenData extData) {
+                CitizenBackground bg = extData.getCitizenBackground();
+                if (bg != null && bg.isInitialized()) {
+                    hasBg = true;
+                    bgStatus = "OK (" + bg.getTraits().size() + " traits)";
+                    withBg++;
+                } else if (bg != null) {
+                    bgStatus = "NOT INITIALIZED";
+                    withoutBg++;
+                } else {
+                    bgStatus = "NULL";
+                    withoutBg++;
+                }
+            } else {
+                withoutBg++;
+            }
+
+            player.sendSystemMessage(Component.literal(
+                (hasBg ? "✓ " : "✗ ") + civilianData.getName() + " (ID:" + civilianData.getId() + ") - " + bgStatus));
+        }
+
+        player.sendSystemMessage(Component.literal(
+            "Summary: " + withBg + " with backgrounds, " + withoutBg + " missing"));
+
         return 1;
     }
 }

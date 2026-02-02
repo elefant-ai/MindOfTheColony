@@ -70,7 +70,7 @@ public class CitizenNpcManager {
      * Called when a citizen is loaded into the world.
      */
     public void onCitizenLoad(ICitizenData citizenData) {
-        if (citizenData == null || bridges.containsKey(citizenData.getId())) {
+        if (citizenData == null) {
             return;
         }
 
@@ -83,6 +83,15 @@ public class CitizenNpcManager {
         if (citizenData instanceof IExtendedCitizenData extData) {
             CitizenBackground bg = extData.getCitizenBackground();
             needsBackgroundGeneration = (bg == null || !bg.isInitialized());
+        }
+
+        // If bridge already exists, just ensure background exists
+        if (bridges.containsKey(citizenData.getId())) {
+            if (needsBackgroundGeneration) {
+                LOGGER.info("Citizen {} has bridge but missing background, generating...", citizenData.getName());
+                generateBackgroundForCitizen(citizenData);
+            }
+            return;
         }
 
         // Create bridge now (will spawn NPC after background is ready)

@@ -1,5 +1,7 @@
 package com.goodbird.mindofthecolony.mixin.impl;
 
+import com.goodbird.mindofthecolony.CitizenNpcManager;
+import com.goodbird.mindofthecolony.background.BackgroundGenerationService;
 import com.goodbird.mindofthecolony.background.CitizenBackground;
 import com.goodbird.mindofthecolony.background.TraitDefinition;
 import com.goodbird.mindofthecolony.background.TraitModifierCalculator;
@@ -89,6 +91,37 @@ public abstract class MixinCitizenData implements IExtendedCitizenData {
 
         // Set citizen reference on skill handler for trait bonuses
         mindOfTheColony$setSkillHandlerCitizen();
+
+        // If background is missing or uninitialized, trigger generation
+        // This catches citizens saved before async generation completed
+        if (mindOfTheColony$citizenBackground == null || !mindOfTheColony$citizenBackground.isInitialized()) {
+            CitizenData self = (CitizenData)(Object)this;
+            String gameId = CitizenNpcManager.getInstance().getGameId();
+            if (gameId != null) {
+                org.slf4j.LoggerFactory.getLogger(MixinCitizenData.class)
+                    .info("Citizen {} loaded with uninitialized background, triggering generation", self.getName());
+                BackgroundGenerationService.getInstance().generateBackground(self, gameId)
+                    .thenAccept(background -> {
+                        setCitizenBackground(background);
+                        org.slf4j.LoggerFactory.getLogger(MixinCitizenData.class)
+                            .info("Generated background for citizen {} on load", self.getName());
+                    })
+                    .exceptionally(ex -> {
+                        org.slf4j.LoggerFactory.getLogger(MixinCitizenData.class)
+                            .error("Failed to generate background for citizen {} on load: {}",
+                                self.getName(), ex.getMessage());
+                        // Broadcast error to all players
+                        IColony colony = getColony();
+                        if (colony != null && colony.getWorld() != null) {
+                            String errorMsg = "§c[MindOfTheColony] Failed to generate background for " + self.getName() + ": " + ex.getMessage();
+                            for (net.minecraft.world.entity.player.Player player : colony.getWorld().players()) {
+                                player.sendSystemMessage(net.minecraft.network.chat.Component.literal(errorMsg));
+                            }
+                        }
+                        return null;
+                    });
+            }
+        }
     }
 
     /**
@@ -108,6 +141,17 @@ public abstract class MixinCitizenData implements IExtendedCitizenData {
     @Inject(method = "initStats", at = @At("TAIL"), remap = false)
     private void onInitStats(CallbackInfo ci) {
         mindOfTheColony$setSkillHandlerCitizen();
+    }
+
+    /**
+     * Hook into initForNewCivilian to trigger background generation for newly created citizens.
+     * This catches babies born mid-game and newly recruited citizens.
+     */
+    @Inject(method = "initForNewCivilian", at = @At("TAIL"), remap = false)
+    private void onInitForNewCivilian(CallbackInfo ci) {
+        CitizenData self = (CitizenData)(Object)this;
+        // Trigger background generation via CitizenNpcManager
+        CitizenNpcManager.getInstance().onCitizenLoad(self);
     }
 
     @Inject(method = "serializeNBT", at = @At("RETURN"), remap = false)
@@ -150,6 +194,17 @@ public abstract class MixinCitizenData implements IExtendedCitizenData {
     @Override
     public void setCitizenBackground(CitizenBackground background) {
         this.mindOfTheColony$citizenBackground = background;
+
+        // Apply skill bonuses from permanent traits
+        if (background != null && background.isInitialized()) {
+            for (String traitId : background.getTraits()) {
+                mindOfTheColony$applyTraitSkillBonuses(traitId);
+            }
+        }
+
+        // Mark dirty to ensure the background is saved
+        CitizenData self = (CitizenData)(Object)this;
+        self.markDirty(0);
     }
 
     @Override
