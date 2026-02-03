@@ -39,6 +39,9 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+import javax.annotation.Nullable;
+import java.util.UUID;
+
 /**
  * Mixin to extend CitizenData with conversation history and background persistence.
  */
@@ -59,6 +62,9 @@ public abstract class MixinCitizenData implements IExtendedCitizenData {
     private CitizenBackground mindOfTheColony$citizenBackground = null;
 
     @Unique
+    private UUID mindOfTheColony$npcId = null;
+
+    @Unique
     private final List<TemporaryModifier> mindOfTheColony$temporaryModifiers = new ArrayList<>();
 
     @Unique
@@ -68,6 +74,14 @@ public abstract class MixinCitizenData implements IExtendedCitizenData {
     private void onDeserializeNBT(HolderLookup.Provider provider, CompoundTag compound, CallbackInfo ci) {
         if (compound.contains("aiConversationHistory", Tag.TAG_COMPOUND)) {
             this.mindOfTheColony$loadedConversationHistoryNBT = compound.getCompound("aiConversationHistory");
+        }
+        if (compound.contains("aiNpcId", Tag.TAG_STRING)) {
+            String npcIdStr = compound.getString("aiNpcId");
+            try {
+                this.mindOfTheColony$npcId = UUID.fromString(npcIdStr);
+            } catch (IllegalArgumentException e) {
+                this.mindOfTheColony$npcId = null;
+            }
         }
         if (compound.contains("citizenBackground", Tag.TAG_COMPOUND)) {
             this.mindOfTheColony$citizenBackground = CitizenBackground.fromNBT(compound.getCompound("citizenBackground"));
@@ -162,6 +176,10 @@ public abstract class MixinCitizenData implements IExtendedCitizenData {
         }
         if (this.mindOfTheColony$citizenBackground != null) {
             compound.put("citizenBackground", this.mindOfTheColony$citizenBackground.toNBT());
+        }
+        // Save NPC ID for restoring memories on reload
+        if (this.mindOfTheColony$npcId != null) {
+            compound.putString("aiNpcId", this.mindOfTheColony$npcId.toString());
         }
         // Save temporary modifiers
         if (!this.mindOfTheColony$temporaryModifiers.isEmpty()) {
@@ -495,5 +513,16 @@ public abstract class MixinCitizenData implements IExtendedCitizenData {
         } else {
             buf.writeBoolean(false);
         }
+    }
+
+    @Override
+    @Nullable
+    public UUID getNpcId() {
+        return mindOfTheColony$npcId;
+    }
+
+    @Override
+    public void setNpcId(@Nullable UUID npcId) {
+        this.mindOfTheColony$npcId = npcId;
     }
 }

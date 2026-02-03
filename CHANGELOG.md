@@ -39,7 +39,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Event context injection into citizen AI prompts
   - Configurable event types, durations, happiness modifiers, and generation intervals
 - NPC conversation history tracking ([#4](https://github.com/elefant-ai/MindOfTheColony/pull/4))
-  - API history support for NPCs
+  - Persistent NPC memory across server restarts via UUID-based resume
+  - NPC IDs stored in NBT compound tags for state persistence
+  - Fixed game session ID for identity consistency
+  - Conversation history continuity across reloads
 - Chat window UI improvements ([#3](https://github.com/elefant-ai/MindOfTheColony/pull/3))
   - Enter-to-send functionality in chat interface
   - Auto-scroll feature in chat history
@@ -68,6 +71,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Gradle wrapper integration
 - Build automation
   - GitHub Actions workflow for automated builds
+- Automated release workflow ([#10](https://github.com/elefant-ai/MindOfTheColony/pull/10))
+  - GitHub Actions for automated publishing to Modrinth and CurseForge
+  - Builds and uploads on GitHub release publication
+  - Uses CHANGELOG.md for release notes
+- Configurable disease system ([#5](https://github.com/elefant-ai/MindOfTheColony/pull/5))
+  - Job-specific disease susceptibility modifiers (miners/quarriers 2.0x, healers 0.05x, etc.)
+  - Configurable contact spread rates per job type
+  - `DiseaseConfig.java` with TOML configuration
+  - `MixinCitizenDiseaseHandler.java` for custom disease spread logic
 - Development tools
   - VSCode settings for project
   - Git attributes configuration
@@ -88,6 +100,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Moved MineColonies and related libraries from local `lib/` to Maven dependencies
   - Cleaned up build.gradle configuration
 - Enhanced .gitignore to exclude build artifacts and IDE files
+- Replaced hardcoded healer disease immunity with configurable low-susceptibility modifier ([#5](https://github.com/elefant-ai/MindOfTheColony/pull/5))
 
 ### Removed
 - Local library JARs from repository
