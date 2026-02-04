@@ -43,6 +43,9 @@ public class CitizenNpcManager {
     // Maps citizenId -> player currently chatting with that citizen
     private final Map<Integer, ServerPlayer> activeConversations = new ConcurrentHashMap<>();
 
+    // Maps citizenId -> player who has the chat menu open (for freezing movement)
+    private final Map<Integer, ServerPlayer> frozenCitizens = new ConcurrentHashMap<>();
+
     // Game session ID - unique per server instance
     private String gameId;
 
@@ -231,6 +234,35 @@ public class CitizenNpcManager {
     }
 
     /**
+     * Freezes a citizen's movement while a player has their menu open.
+     */
+    public void freezeCitizen(int citizenId, ServerPlayer player) {
+        frozenCitizens.put(citizenId, player);
+    }
+
+    /**
+     * Unfreezes a citizen's movement when the menu is closed.
+     */
+    public void unfreezeCitizen(int citizenId) {
+        frozenCitizens.remove(citizenId);
+    }
+
+    /**
+     * Checks if a citizen is frozen.
+     */
+    public boolean isCitizenFrozen(int citizenId) {
+        return frozenCitizens.containsKey(citizenId);
+    }
+
+    /**
+     * Gets the player who froze a citizen.
+     */
+    @Nullable
+    public ServerPlayer getFreezingPlayer(int citizenId) {
+        return frozenCitizens.get(citizenId);
+    }
+
+    /**
      * Gets the citizen ID for a given NPC UUID.
      */
     @Nullable
@@ -244,6 +276,9 @@ public class CitizenNpcManager {
     public void onServerTick() {
         bridges.values().forEach(CitizenNpcBridge::onTick);
 
+        // Keep frozen citizens stopped and looking at the player
+        tickFrozenCitizens();
+
         // Tick event managers for all colonies
         if (currentLevel != null) {
             long currentTick = currentLevel.getGameTime();
@@ -252,6 +287,36 @@ public class CitizenNpcManager {
                 eventManager.onTick(colony, currentLevel, currentTick);
             }
         }
+    }
+
+    /**
+     * Keeps frozen citizens stopped and looking at the player who froze them.
+     */
+    private void tickFrozenCitizens() {
+        if (currentLevel == null) return;
+        if (frozenCitizens.isEmpty()) return;
+
+        frozenCitizens.forEach((citizenId, player) -> {
+            if (player.isRemoved() || !player.isAlive()) {
+                frozenCitizens.remove(citizenId);
+                return;
+            }
+
+            for (IColony colony : IColonyManager.getInstance().getColonies(currentLevel)) {
+                ICitizenData citizenData = colony.getCitizenManager().getCivilian(citizenId);
+                if (citizenData == null) {
+                    citizenData = colony.getVisitorManager().getCivilian(citizenId);
+                }
+
+                if (citizenData != null) {
+                    citizenData.getEntity().ifPresent(entity -> {
+                        entity.getNavigation().stop();
+                        entity.getLookControl().setLookAt(player);
+                    });
+                    break;
+                }
+            }
+        });
     }
 
     /**

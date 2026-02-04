@@ -1,12 +1,14 @@
 package com.goodbird.mindofthecolony.mixin.impl;
 
 import com.goodbird.mindofthecolony.client.TabbedDebugWindow;
+import com.goodbird.mindofthecolony.network.ChatMenuStateMessage;
 import com.minecolonies.api.colony.ICitizenDataView;
 import com.minecolonies.core.client.gui.AbstractWindowSkeleton;
 import com.minecolonies.core.client.gui.citizen.AbstractWindowCitizen;
 import com.minecolonies.core.debug.DebugPlayerManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
+import net.neoforged.neoforge.network.PacketDistributor;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -40,5 +42,20 @@ public abstract class MixinAbstractWindowCitizen extends AbstractWindowSkeleton 
             this.registerButton("debugTab", () -> new TabbedDebugWindow(citizen).open());
             this.registerButton("debugIcon", () -> new TabbedDebugWindow(citizen).open());
         }
+    }
+
+    /**
+     * Override onClosed to unfreeze the citizen when any citizen window is closed.
+     * We use @Override because AbstractWindowCitizen doesn't have its own onClosed method,
+     * so @Inject cannot target it. This adds the method to the class.
+     */
+    @Override
+    public void onClosed() {
+        super.onClosed();
+        PacketDistributor.sendToServer(new ChatMenuStateMessage(
+            citizen.getColonyId(),
+            citizen.getId(),
+            false
+        ));
     }
 }

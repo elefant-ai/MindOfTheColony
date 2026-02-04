@@ -21,6 +21,13 @@ public class ModNetworking {
             AIChatMessage::handle
         );
 
+        // Client -> Server: Player opens/closes chat menu (freeze/unfreeze citizen)
+        registrar.playToServer(
+            ChatMenuStateMessage.TYPE,
+            ChatMenuStateMessage.STREAM_CODEC,
+            ChatMenuStateMessage::handle
+        );
+
         // Server -> Client: NPC response sent to player
         registrar.playToClient(
             AIChatResponseMessage.TYPE,
