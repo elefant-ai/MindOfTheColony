@@ -37,7 +37,8 @@ public class BackgroundGenerationService {
     private final ConcurrentHashMap<UUID, NpcHandle> generatorNpcs = new ConcurrentHashMap<>();
 
     private Player2EventListener listener;
-    private boolean listenerRegistered = false;
+    private volatile boolean listenerRegistered = false;
+    private final Object listenerLock = new Object();
 
     private BackgroundGenerationService() {}
 
@@ -54,7 +55,7 @@ public class BackgroundGenerationService {
      * @return CompletableFuture that completes with the generated background
      */
     public CompletableFuture<CitizenBackground> generateBackground(ICitizenData citizenData, String gameId) {
-        ensureListenerRegistered();
+        // Listener is now registered at startup in MindOfTheColony.java
 
         String citizenName = citizenData.getName();
         String gender = citizenData.isFemale() ? "female" : "male";
@@ -96,26 +97,51 @@ public class BackgroundGenerationService {
                 return null;
             });
 
-        // Timeout after 30 seconds - do NOT fall back, let the error propagate
-        return future.orTimeout(30, TimeUnit.SECONDS)
+        // Timeout after 30 seconds with detailed error reporting
+        return future
+            .orTimeout(30, TimeUnit.SECONDS)
             .exceptionally(ex -> {
-                LOGGER.error("Background generation FAILED for {} - {}", citizenName, ex.getMessage());
-                // Re-throw to propagate the error to caller
-                throw new RuntimeException("Background generation failed for " + citizenName + ": " + ex.getMessage(), ex);
+                String errorDetails;
+                if (ex instanceof java.util.concurrent.TimeoutException) {
+                    errorDetails = String.format(
+                        "Background generation timed out after 30 seconds for citizen '%s'. " +
+                        "NPC may not have responded. Check API connectivity and joules/credits.",
+                        citizenName
+                    );
+                } else {
+                    errorDetails = String.format(
+                        "Background generation failed for citizen '%s': %s - %s",
+                        citizenName,
+                        ex.getClass().getSimpleName(),
+                        ex.getMessage() != null ? ex.getMessage() : "Unknown error"
+                    );
+                }
+
+                LOGGER.error(errorDetails, ex);
+                throw new RuntimeException(errorDetails, ex);
             });
     }
 
-    private void ensureListenerRegistered() {
+    /**
+     * Registers the event listener for background generation responses.
+     * This method is thread-safe and can be called multiple times safely.
+     * Should be called at server startup to ensure the listener is ready before any generation requests.
+     */
+    public void registerListener() {
         if (!listenerRegistered) {
-            listener = new Player2EventListener() {
-                @Override
-                public boolean onMessageEvent(NpcMessageEvent event) {
-                    return handleGeneratorResponse(event);
+            synchronized (listenerLock) {
+                if (!listenerRegistered) {
+                    listener = new Player2EventListener() {
+                        @Override
+                        public boolean onMessageEvent(NpcMessageEvent event) {
+                            return handleGeneratorResponse(event);
+                        }
+                    };
+                    Player2NpcLib.addListener(listener);
+                    listenerRegistered = true;
+                    LOGGER.info("Background generation listener registered successfully");
                 }
-            };
-            Player2NpcLib.addListener(listener);
-            listenerRegistered = true;
-            LOGGER.debug("Background generation listener registered");
+            }
         }
     }
 
@@ -129,7 +155,6 @@ public class BackgroundGenerationService {
         }
 
         String response = event.getMessage();
-        LOGGER.debug("Received background generation response: {}", response);
 
         try {
             CitizenBackground background = parseGeneratorResponse(response);
@@ -142,8 +167,14 @@ public class BackgroundGenerationService {
 
         // Clean up the temporary NPC
         NpcHandle handle = generatorNpcs.remove(npcId);
-        if (handle != null && handle.isAlive()) {
-            handle.kill();
+        if (handle != null) {
+            if (handle.isAlive()) {
+                handle.kill();
+            } else {
+                LOGGER.warn("Generator NPC {} was already dead during cleanup", npcId);
+            }
+        } else {
+            LOGGER.warn("No NPC handle found for cleanup of generator NPC {}", npcId);
         }
 
         return true; // Consume this event
@@ -283,19 +314,37 @@ public class BackgroundGenerationService {
     }
 
     /**
+     * Logs the current status of background generation service.
+     * Useful for debugging.
+     */
+    public void logStatus() {
+        LOGGER.info("BackgroundGenerationService Status: {} pending requests, {} generator NPCs, listener registered: {}",
+            pendingRequests.size(), generatorNpcs.size(), listenerRegistered);
+
+        if (!pendingRequests.isEmpty()) {
+            LOGGER.debug("Pending request NPC IDs: {}", pendingRequests.keySet());
+        }
+    }
+
+    /**
      * Cleans up any pending requests and listener.
      */
     public void shutdown() {
-        // Complete all pending futures exceptionally
+        LOGGER.info("Shutting down BackgroundGenerationService...");
+
+        // Complete all pending futures with fallback
+        int pendingCount = pendingRequests.size();
         pendingRequests.forEach((id, future) -> {
             if (!future.isDone()) {
+                LOGGER.warn("Completing pending request for NPC {} with fallback due to shutdown", id);
                 future.complete(BackgroundGenerator.generate());
             }
         });
         pendingRequests.clear();
 
         // Kill any remaining generator NPCs
-        generatorNpcs.values().forEach(handle -> {
+        int npcCount = generatorNpcs.size();
+        generatorNpcs.forEach((id, handle) -> {
             if (handle.isAlive()) {
                 handle.kill();
             }
@@ -305,6 +354,10 @@ public class BackgroundGenerationService {
         if (listener != null && listenerRegistered) {
             Player2NpcLib.removeListener(listener);
             listenerRegistered = false;
+            LOGGER.info("Background generation listener unregistered");
         }
+
+        LOGGER.info("BackgroundGenerationService shutdown complete ({} pending requests, {} NPCs cleaned up)",
+            pendingCount, npcCount);
     }
 }

@@ -1,5 +1,6 @@
 package com.goodbird.mindofthecolony;
 
+import com.goodbird.mindofthecolony.background.BackgroundGenerationService;
 import com.goodbird.mindofthecolony.command.MotcCommand;
 import com.goodbird.mindofthecolony.config.BackgroundConfigLoader;
 import com.goodbird.mindofthecolony.config.DiseaseConfig;
@@ -53,9 +54,12 @@ public class MindOfTheColony {
         BackgroundConfigLoader.loadOrCreate();
         EventConfig.loadOrCreate();
 
-        // Initialize java-npc library and register event listener
+        // Initialize java-npc library and register event listeners
         Player2NpcLib.initialize();
         Player2NpcLib.addListener(new NpcEventHandler());
+
+        // Register background generation listener to ensure it's ready before any generation requests
+        BackgroundGenerationService.getInstance().registerListener();
 
         // Initialize the manager when server starts
         CitizenNpcManager.getInstance().initialize();
