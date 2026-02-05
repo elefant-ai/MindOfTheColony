@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Make NPCs stop moving and look at players when player is in UI
+- Rework Traits to be more flexible and support both positive and negative modifiers
+- Update debug ui to show traits and their modifiers
+- Add commands to regenerate backgrounds for testing and debugging
 
 ## [1.0.1] - 2026-02-02
 
