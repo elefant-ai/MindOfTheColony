@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Make NPCs stop moving and look at players when player is in UI
+
+## [1.0.1] - 2026-02-02
+
+### Added
 - Unified trait system with gameplay modifiers
   - Traits can have both positive and negative effects on disease rate, happiness, work speed, and food consumption
   - Supported modifiers: `diseaseRate`, `contactDiseaseRate`, `happinessBase`, `happinessDecayRate`, `workSpeed`, `foodConsumption`

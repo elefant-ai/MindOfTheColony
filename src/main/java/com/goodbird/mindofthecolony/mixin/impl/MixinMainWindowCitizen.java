@@ -1,6 +1,7 @@
 package com.goodbird.mindofthecolony.mixin.impl;
 
 import com.goodbird.mindofthecolony.client.ChatWindowCitizen;
+import com.goodbird.mindofthecolony.network.ChatMenuStateMessage;
 import com.ldtteam.blockui.PaneBuilders;
 import com.ldtteam.blockui.Pane;
 import com.ldtteam.blockui.controls.Button;
@@ -10,6 +11,7 @@ import com.minecolonies.api.colony.ICitizenDataView;
 import com.minecolonies.core.client.gui.citizen.MainWindowCitizen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.neoforged.neoforge.network.PacketDistributor;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -31,11 +33,18 @@ public abstract class MixinMainWindowCitizen {
     private static final String CHAT_ICON_ID = "mindofthecolony_chatIcon";
 
     /**
-     * Inject at the end of onOpened to add our chat tab button.
+     * Inject at the end of onOpened to add our chat tab button and freeze the citizen.
      */
     @Inject(method = "onOpened", at = @At("TAIL"), remap = false)
     private void onOpenedInject(CallbackInfo ci) {
         MainWindowCitizen self = (MainWindowCitizen)(Object)this;
+
+        ICitizenDataView citizen = getCitizen();
+        PacketDistributor.sendToServer(new ChatMenuStateMessage(
+            citizen.getColonyId(),
+            citizen.getId(),
+            true
+        ));
 
         View window = ((Pane)self).getWindow();
         if (window == null) return;
@@ -72,7 +81,6 @@ public abstract class MixinMainWindowCitizen {
     @Inject(method = "onButtonClicked", at = @At("HEAD"), cancellable = true, remap = false)
     private void onButtonClickedInject(Button button, CallbackInfo ci) {
         if (CHAT_TAB_ID.equals(button.getID()) || CHAT_ICON_ID.equals(button.getID())) {
-            // Open the chat window
             new ChatWindowCitizen(getCitizen()).open();
             ci.cancel();
         }
