@@ -41,5 +41,19 @@ public class ModNetworking {
             BackgroundResponseMessage.STREAM_CODEC,
             BackgroundResponseMessage::handle
         );
+
+        // Client -> Server: Request event data for a colony
+        registrar.playToServer(
+            EventDataRequestMessage.TYPE,
+            EventDataRequestMessage.STREAM_CODEC,
+            EventDataRequestMessage::handle
+        );
+
+        // Server -> Client: Event data response
+        registrar.playToClient(
+            EventDataResponseMessage.TYPE,
+            EventDataResponseMessage.STREAM_CODEC,
+            EventDataResponseMessage::handle
+        );
     }
 }

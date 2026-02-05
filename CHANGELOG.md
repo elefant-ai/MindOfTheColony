@@ -8,10 +8,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Unified trait system with gameplay modifiers
+  - Traits can have both positive and negative effects on disease rate, happiness, work speed, and food consumption
+  - Supported modifiers: `diseaseRate`, `contactDiseaseRate`, `happinessBase`, `happinessDecayRate`, `workSpeed`, `foodConsumption`
+  - Weighted random trait selection (2-4 traits per citizen)
+  - Configurable via `traits.json` and `origins.json`
+- Visitor background support
+  - Visitors now receive AI-generated backgrounds when spawned via `MixinVisitorManager`
+  - Background data persists through recruitment (NBT transfer)
+  - Missing backgrounds checked and generated on server startup
+  - Debug window displays visitor backgrounds
+- Admin commands (`/motc`) - requires operator level 2
+  - `/motc language [lang]` - Get or set NPC conversation language
+  - `/motc regenbackground <colonyId> <citizenId>` - Regenerate a single citizen's background
+  - `/motc regenall <colonyId>` - Regenerate all citizens' backgrounds in a colony
+  - `/motc regenvisitors <colonyId>` - Regenerate all visitors' backgrounds in a colony
+- Disease modifier system
+  - Job-based disease modifiers via `disease_config.json`
+  - Trait-based disease modifiers that stack multiplicatively with job modifiers
+  - Contact disease rate modifiers for disease spread
 - Citizen background and personality system ([#1](https://github.com/elefant-ai/MindOfTheColony/pull/1))
-  - 12 unique backstories for citizens (refugee farmer, disgraced noble, wandering trader, etc.)
-  - 10 distinct personality traits (cheerful, grumpy, cautious, boastful, etc.)
-  - 18 possible penalties across criminal, conversation secrets, social, and personal flaw categories
+  - AI-generated backstories for citizens
   - Background data persistence via NBT serialization
   - Configurable backgrounds via JSON config files
   - Background display in citizen debug window
@@ -73,6 +90,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Replaced `CitizenAIBridge` with `CitizenNpcBridge`
   - Improved conversation management with client-server network protocol
   - Enhanced system prompt generation with contextual awareness
+- `BackgroundRequestMessage` now checks both citizen and visitor managers
+- `MixinCitizenData` updated for NeoForge's `HolderLookup.Provider` in NBT serialization
 - Improved citizen status reporting ([#3](https://github.com/elefant-ai/MindOfTheColony/pull/3))
   - Added Level 0 → 1 build phrasing in citizen AI prompts
   - Enhanced job/request status strings with work order and requester details

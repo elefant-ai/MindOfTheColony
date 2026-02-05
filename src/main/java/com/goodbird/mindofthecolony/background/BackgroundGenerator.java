@@ -2,8 +2,7 @@ package com.goodbird.mindofthecolony.background;
 
 import com.goodbird.mindofthecolony.config.ModSettings;
 
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
 /**
  * Generates a random CitizenBackground.
@@ -18,34 +17,56 @@ public final class BackgroundGenerator {
     public static CitizenBackground generate() {
         CitizenBackground bg = new CitizenBackground();
 
-        List<BackgroundDefinitions.BackgroundEntry> origins = BackgroundDefinitions.getOrigins();
-        List<BackgroundDefinitions.BackgroundEntry> traits = BackgroundDefinitions.getPersonalityTraits();
-        List<BackgroundDefinitions.PenaltyEntry> penalties = BackgroundDefinitions.getPenalties();
+        // Pick 2-4 unique traits using weighted selection
+        int minTraits = ModSettings.MIN_TRAITS.get();
+        int maxTraits = ModSettings.MAX_TRAITS.get();
+        int traitCount = minTraits + RANDOM.nextInt(maxTraits - minTraits + 1);
 
-        BackgroundDefinitions.BackgroundEntry origin = origins.get(RANDOM.nextInt(origins.size()));
-        bg.setOrigin(origin.id());
+        Set<String> usedTraitIds = new HashSet<>();
 
-        BackgroundDefinitions.BackgroundEntry trait = traits.get(RANDOM.nextInt(traits.size()));
-        bg.setPersonalityTrait(trait.id());
-
-        double penaltyChance = ModSettings.PENALTY_CHANCE.get();
-        double secondPenaltyChance = ModSettings.SECOND_PENALTY_CHANCE.get();
-        int maxPenalties = ModSettings.MAX_PENALTIES.get();
-
-        if (!penalties.isEmpty() && maxPenalties > 0 && RANDOM.nextDouble() < penaltyChance) {
-            BackgroundDefinitions.PenaltyEntry penalty =
-                penalties.get(RANDOM.nextInt(penalties.size()));
-            bg.addPenalty(penalty.id());
-
-            if (maxPenalties > 1 && penalties.size() > 1 && RANDOM.nextDouble() < secondPenaltyChance) {
-                BackgroundDefinitions.PenaltyEntry second;
-                do {
-                    second = penalties.get(RANDOM.nextInt(penalties.size()));
-                } while (second.id().equals(penalty.id()));
-                bg.addPenalty(second.id());
+        for (int i = 0; i < traitCount; i++) {
+            TraitDefinition trait = pickWeightedTrait(usedTraitIds);
+            if (trait != null) {
+                bg.addTrait(trait.id());
+                usedTraitIds.add(trait.id());
             }
         }
 
         return bg;
+    }
+
+    /**
+     * Pick a random trait using weighted selection, excluding already-picked traits.
+     * Only considers assignable traits (not temporaryOnly).
+     */
+    private static TraitDefinition pickWeightedTrait(Set<String> excludeIds) {
+        List<TraitDefinition> assignableTraits = TraitRegistry.getAssignableTraits();
+
+        // Filter out already-used traits
+        List<TraitDefinition> available = new ArrayList<>();
+        double totalWeight = 0;
+        for (TraitDefinition trait : assignableTraits) {
+            if (!excludeIds.contains(trait.id())) {
+                available.add(trait);
+                totalWeight += trait.weight();
+            }
+        }
+
+        if (available.isEmpty() || totalWeight <= 0) {
+            return null;
+        }
+
+        // Weighted random selection
+        double roll = RANDOM.nextDouble() * totalWeight;
+        double cumulative = 0;
+        for (TraitDefinition trait : available) {
+            cumulative += trait.weight();
+            if (roll < cumulative) {
+                return trait;
+            }
+        }
+
+        // Fallback (should not happen)
+        return available.get(available.size() - 1);
     }
 }

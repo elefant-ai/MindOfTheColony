@@ -1,5 +1,7 @@
 package com.goodbird.mindofthecolony.background;
 
+import com.goodbird.mindofthecolony.effect.TemporaryModifier;
+import com.goodbird.mindofthecolony.effect.TemporaryTrait;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.StringTag;
@@ -10,111 +12,151 @@ import java.util.List;
 
 /**
  * Holds a citizen's permanent background identity:
- * origin backstory, personality traits, and penalties.
+ * AI-generated backstory and traits (for modifiers).
  * Assigned once on first spawn, persisted via NBT forever.
  */
 public class CitizenBackground {
-    private String origin;
-    private String personalityTrait;
-    private final List<String> penalties;
+    private String backstory;  // AI-generated freeform backstory
+    private final List<String> traits;  // Trait IDs for modifiers
+    private transient TraitModifiers cachedModifiers;
 
     public CitizenBackground() {
-        this.origin = null;
-        this.personalityTrait = null;
-        this.penalties = new ArrayList<>();
+        this.backstory = null;
+        this.traits = new ArrayList<>();
+        this.cachedModifiers = null;
     }
 
-    public String getOrigin() {
-        return origin;
+    public String getBackstory() {
+        return backstory;
     }
 
-    public void setOrigin(String origin) {
-        this.origin = origin;
+    public void setBackstory(String backstory) {
+        this.backstory = backstory;
     }
 
-    public String getPersonalityTrait() {
-        return personalityTrait;
+    public List<String> getTraits() {
+        return traits;
     }
 
-    public void setPersonalityTrait(String trait) {
-        this.personalityTrait = trait;
-    }
-
-    public List<String> getPenalties() {
-        return penalties;
-    }
-
-    public void addPenalty(String penalty) {
-        this.penalties.add(penalty);
+    public void addTrait(String trait) {
+        this.traits.add(trait);
+        invalidateCache();
     }
 
     public boolean isInitialized() {
-        return origin != null && personalityTrait != null;
+        return backstory != null && !backstory.isEmpty();
+    }
+
+    private void invalidateCache() {
+        this.cachedModifiers = null;
+    }
+
+    /**
+     * Get computed modifiers from permanent traits only.
+     */
+    public TraitModifiers getModifiers() {
+        if (cachedModifiers == null) {
+            cachedModifiers = TraitModifierCalculator.calculate(traits);
+        }
+        return cachedModifiers;
+    }
+
+    /**
+     * Get computed modifiers including temporary effects.
+     *
+     * @param temporaryTraits    Temporary traits applied by events
+     * @param temporaryModifiers Direct temporary modifiers from events
+     * @param currentTick        Current game tick for calculating time-based effects
+     */
+    public TraitModifiers getModifiers(
+            List<TemporaryTrait> temporaryTraits,
+            List<TemporaryModifier> temporaryModifiers,
+            long currentTick) {
+        return TraitModifierCalculator.calculate(traits, temporaryTraits, temporaryModifiers, currentTick);
+    }
+
+    /**
+     * Convenience method for disease rate modifier.
+     */
+    public double getDiseaseRateModifier() {
+        return getModifiers().diseaseRate();
+    }
+
+    /**
+     * Convenience method for contact disease rate modifier.
+     */
+    public double getContactDiseaseRateModifier() {
+        return getModifiers().contactDiseaseRate();
     }
 
     // --- NBT serialization ---
 
     public CompoundTag toNBT() {
         CompoundTag tag = new CompoundTag();
-        if (origin != null) {
-            tag.putString("origin", origin);
+        if (backstory != null) {
+            tag.putString("backstory", backstory);
         }
-        if (personalityTrait != null) {
-            tag.putString("personality", personalityTrait);
+        ListTag traitList = new ListTag();
+        for (String t : traits) {
+            traitList.add(StringTag.valueOf(t));
         }
-        ListTag penaltyList = new ListTag();
-        for (String p : penalties) {
-            penaltyList.add(StringTag.valueOf(p));
-        }
-        tag.put("penalties", penaltyList);
+        tag.put("traits", traitList);
         return tag;
     }
 
     public static CitizenBackground fromNBT(CompoundTag tag) {
         CitizenBackground bg = new CitizenBackground();
-        if (tag.contains("origin", Tag.TAG_STRING)) {
-            bg.origin = tag.getString("origin");
+
+        if (tag.contains("backstory", Tag.TAG_STRING)) {
+            bg.backstory = tag.getString("backstory");
         }
-        if (tag.contains("personality", Tag.TAG_STRING)) {
-            bg.personalityTrait = tag.getString("personality");
-        }
-        if (tag.contains("penalties", Tag.TAG_LIST)) {
-            ListTag list = tag.getList("penalties", Tag.TAG_STRING);
+
+        if (tag.contains("traits", Tag.TAG_LIST)) {
+            ListTag list = tag.getList("traits", Tag.TAG_STRING);
             for (int i = 0; i < list.size(); i++) {
-                bg.penalties.add(list.getString(i));
+                bg.traits.add(list.getString(i));
             }
         }
+
         return bg;
     }
 
     // --- AI prompt generation ---
 
     public String toSystemPromptSection() {
+        return toSystemPromptSection(List.of(), 0);
+    }
+
+    /**
+     * Generate system prompt section including temporary traits.
+     *
+     * @param temporaryTraits Temporary traits applied by events
+     * @param currentTick     Current game tick for checking expiration
+     */
+    public String toSystemPromptSection(List<TemporaryTrait> temporaryTraits, long currentTick) {
         StringBuilder sb = new StringBuilder("BACKGROUND:\n");
 
-        BackgroundDefinitions.getOrigins().stream()
-            .filter(e -> e.id().equals(origin))
-            .findFirst()
-            .ifPresent(e -> sb.append("- Origin: ").append(e.displayText()).append("\n"));
+        // AI-generated backstory
+        if (backstory != null && !backstory.isEmpty()) {
+            sb.append(backstory).append("\n");
+        }
 
-        BackgroundDefinitions.getPersonalityTraits().stream()
-            .filter(e -> e.id().equals(personalityTrait))
-            .findFirst()
-            .ifPresent(e -> sb.append("- Personality: ").append(e.displayText()).append("\n"));
+        // Permanent traits (for display, show their descriptions)
+        for (String traitId : traits) {
+            TraitDefinition traitDef = TraitRegistry.getTrait(traitId);
+            if (traitDef != null) {
+                sb.append("- ").append(traitDef.displayText()).append("\n");
+            }
+        }
 
-        for (String penaltyId : penalties) {
-            BackgroundDefinitions.getPenalties().stream()
-                .filter(e -> e.id().equals(penaltyId))
-                .findFirst()
-                .ifPresent(e -> {
-                    String label = switch (e.category()) {
-                        case CRIMINAL -> "Criminal record";
-                        case CONVERSATION -> "Hidden secret";
-                        case SOCIAL -> "Social burden";
-                        case FLAW -> "Personal flaw";
-                    };
-                    sb.append("- ").append(label).append(": ").append(e.displayText()).append("\n");
-                });
+        // Temporary traits (if any active)
+        for (TemporaryTrait tempTrait : temporaryTraits) {
+            if (tempTrait.isExpired(currentTick)) continue;
+
+            TraitDefinition traitDef = TraitRegistry.getTrait(tempTrait.getTraitId());
+            if (traitDef != null) {
+                sb.append("- [Temporary] ").append(traitDef.displayText()).append("\n");
+            }
         }
 
         return sb.toString();
@@ -122,10 +164,9 @@ public class CitizenBackground {
 
     public String toStatusString() {
         StringBuilder sb = new StringBuilder();
-        sb.append("origin=").append(origin != null ? origin : "none");
-        sb.append(", personality=").append(personalityTrait != null ? personalityTrait : "none");
-        sb.append(", penalties=[");
-        sb.append(String.join(", ", penalties));
+        sb.append("backstory=").append(backstory != null ? "\"" + backstory.substring(0, Math.min(50, backstory.length())) + "...\"" : "none");
+        sb.append(", traits=[");
+        sb.append(String.join(", ", traits));
         sb.append("]");
         return sb.toString();
     }

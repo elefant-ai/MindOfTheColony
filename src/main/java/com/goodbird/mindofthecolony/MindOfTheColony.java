@@ -3,6 +3,7 @@ package com.goodbird.mindofthecolony;
 import com.goodbird.mindofthecolony.command.MotcCommand;
 import com.goodbird.mindofthecolony.config.BackgroundConfigLoader;
 import com.goodbird.mindofthecolony.config.DiseaseConfig;
+import com.goodbird.mindofthecolony.config.EventConfig;
 import com.goodbird.mindofthecolony.config.ModSettings;
 import com.goodbird.mindofthecolony.event.NpcEventHandler;
 import com.goodbird.mindofthecolony.network.ModNetworking;
@@ -13,6 +14,8 @@ import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
 import net.neoforged.neoforge.common.NeoForge;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.Level;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
@@ -46,8 +49,9 @@ public class MindOfTheColony {
 
     @SubscribeEvent
     public void onServerStarted(ServerStartedEvent event) {
-        // Load JSON config for backgrounds
+        // Load JSON configs
         BackgroundConfigLoader.loadOrCreate();
+        EventConfig.loadOrCreate();
 
         // Initialize java-npc library and register event listener
         Player2NpcLib.initialize();
@@ -55,6 +59,16 @@ public class MindOfTheColony {
 
         // Initialize the manager when server starts
         CitizenNpcManager.getInstance().initialize();
+
+        // Check for any existing citizens without backgrounds and generate them
+        ServerLevel overworld = event.getServer().getLevel(Level.OVERWORLD);
+        if (overworld != null) {
+            CitizenNpcManager.getInstance().checkAndGenerateMissingBackgrounds(overworld);
+
+            // Initialize event managers for colonies
+            CitizenNpcManager.getInstance().initializeEventManagers(overworld);
+        }
+
         LOGGER.info("Mind of the Colony ready - citizens can now chat!");
     }
 

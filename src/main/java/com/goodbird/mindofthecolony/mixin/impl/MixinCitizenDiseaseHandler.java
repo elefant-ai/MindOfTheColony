@@ -1,6 +1,8 @@
 package com.goodbird.mindofthecolony.mixin.impl;
 
+import com.goodbird.mindofthecolony.background.CitizenBackground;
 import com.goodbird.mindofthecolony.config.DiseaseConfig;
+import com.goodbird.mindofthecolony.mixin.IExtendedCitizenData;
 import com.minecolonies.api.IMinecoloniesAPI;
 import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.core.datalistener.model.Disease;
@@ -15,6 +17,7 @@ import static com.minecolonies.api.util.constant.Constants.ONE_HUNDRED_PERCENT;
 
 /**
  * Mixin to modify disease handling.
+ * - Disables vanilla random disease rolls (our event system handles this)
  * - Removes hardcoded healer immunity (uses configurable modifier instead)
  * - Applies job-specific contact spread modifiers
  */
@@ -43,6 +46,22 @@ public abstract class MixinCitizenDiseaseHandler {
 
     /**
      * @author MindOfTheColony
+     * @reason Disable vanilla random disease rolls - our ColonyEventManager handles disease via DiseaseOutbreakEvaluator.
+     *         This keeps only the immunity tick countdown logic from vanilla.
+     */
+    @Overwrite
+    public void update(final int tickRate) {
+        // DO NOT roll for random disease here - our event system handles this via DiseaseOutbreakEvaluator
+        // The event system provides better control based on weather, food, happiness, and traits
+
+        // Keep immunity tick countdown from vanilla
+        if (immunityTicks > 0) {
+            immunityTicks -= tickRate;
+        }
+    }
+
+    /**
+     * @author MindOfTheColony
      * @reason Remove hardcoded healer immunity - use configurable modifier instead
      */
     @Overwrite
@@ -58,7 +77,7 @@ public abstract class MixinCitizenDiseaseHandler {
 
     /**
      * @author MindOfTheColony
-     * @reason Apply job-specific contact spread modifiers
+     * @reason Apply job and trait contact spread modifiers
      */
     @Overwrite
     public void onCollission(final ICitizenData citizen) {
@@ -69,8 +88,15 @@ public abstract class MixinCitizenDiseaseHandler {
             String jobId = getJobId();
             double contactModifier = DiseaseConfig.getContactModifier(jobId);
 
+            // Apply trait-based contact modifier
+            if (citizenData instanceof IExtendedCitizenData extData) {
+                CitizenBackground bg = extData.getCitizenBackground();
+                if (bg != null) {
+                    contactModifier *= bg.getContactDiseaseRateModifier();
+                }
+            }
+
             // Base chance is 1% (1 in 100), apply contact modifier
-            // e.g., healer with 0.1 modifier = 0.1% chance
             double effectiveChance = contactModifier;
 
             if (citizen.getRandom().nextDouble() * ONE_HUNDRED_PERCENT < effectiveChance) {

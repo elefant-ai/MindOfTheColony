@@ -6,11 +6,16 @@
   "mixins": [
     "MixinCitizenData",
     "MixinCitizenManager",
-    "MixinCitizenDiseaseHandler"
+    "MixinCitizenDiseaseHandler",
+    "MixinVisitorManager",
+    "MixinAbstractEntityAIBasic",
+    "MixinCitizenHappinessHandler",
+    "MixinCitizenSkillHandler"
   ],
   "client": [
     "MixinMainWindowCitizen",
-    "MixinDebugWindowCitizen"
+    "MixinAbstractWindowCitizen",
+    "MixinCitizenDataView"
   ],
   "minVersion": "0.8"
 }
