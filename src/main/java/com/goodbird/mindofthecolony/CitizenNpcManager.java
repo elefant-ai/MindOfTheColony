@@ -64,7 +64,7 @@ public class CitizenNpcManager {
      * Should be called when the server starts.
      */
     public void initialize() {
-        this.gameId = "MindOfTheColony";
+        this.gameId = "01988524-7250-7688-bf74-e09081a84193";
         LOGGER.info("CitizenNpcManager initialized with gameId: {}", gameId);
     }
 
