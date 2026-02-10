@@ -2,6 +2,8 @@ package com.goodbird.mindofthecolony.event;
 
 import com.goodbird.mindofthecolony.CitizenNpcManager;
 import com.goodbird.mindofthecolony.bridge.CitizenNpcBridge;
+import com.goodbird.mindofthecolony.interaction.NpcConversation;
+import com.goodbird.mindofthecolony.interaction.NpcConversationManager;
 import com.goodbird.mindofthecolony.network.AIChatResponseMessage;
 import game.player2.npc.event.NpcCommandEvent;
 import game.player2.npc.event.NpcConnectionEvent;
@@ -34,7 +36,20 @@ public class NpcEventHandler implements Player2EventListener {
         }
 
         int citizenId = bridge.getCitizenData().getId();
+        int colonyId = bridge.getCitizenData().getColony().getID();
         String citizenName = bridge.getCitizenData().getName();
+
+        // Check if this citizen is in an NPC-NPC conversation
+        NpcConversationManager convManager = NpcConversationManager.getIfExists(colonyId);
+        if (convManager != null) {
+            NpcConversation conversation = convManager.getConversation(citizenId);
+            if (conversation != null && !conversation.isFinished()) {
+                // Route to NPC-NPC conversation manager
+                convManager.handleResponse(conversation, citizenId, message);
+                LOGGER.debug("Routed NPC-NPC response from {}: {}", citizenName, message);
+                return false;
+            }
+        }
 
         // Find the player chatting with this citizen
         ServerPlayer chattingPlayer = CitizenNpcManager.getInstance().getChattingPlayer(citizenId);

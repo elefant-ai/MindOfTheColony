@@ -203,6 +203,20 @@ public class CitizenNpcBridge {
     }
 
     /**
+     * Sends a message to another NPC for NPC-to-NPC conversations.
+     * The colonyId is used for response routing.
+     */
+    public void sendNpcToNpcMessage(String listenerName, String prompt, int colonyId) {
+        if (!ready || npcHandle == null) {
+            return;
+        }
+
+        String context = getGameStateContext() +
+            "\n[You are having a conversation with " + listenerName + ", another colonist.]";
+        npcHandle.chat(listenerName, prompt, context);
+    }
+
+    /**
      * Adds a message heard from another citizen to context.
      * This notifies the NPC about nearby conversations.
      */
