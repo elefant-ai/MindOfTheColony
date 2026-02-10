@@ -43,10 +43,12 @@ public class NpcEventHandler implements Player2EventListener {
         NpcConversationManager convManager = NpcConversationManager.getIfExists(colonyId);
         if (convManager != null) {
             NpcConversation conversation = convManager.getConversation(citizenId);
+            LOGGER.info("Checking NPC-NPC routing for {}: convManager exists, conversation={}",
+                citizenName, conversation);
             if (conversation != null && !conversation.isFinished()) {
                 // Route to NPC-NPC conversation manager
+                LOGGER.info("Routing NPC-NPC response from {} to conversation manager", citizenName);
                 convManager.handleResponse(conversation, citizenId, message);
-                LOGGER.debug("Routed NPC-NPC response from {}: {}", citizenName, message);
                 return false;
             }
         }

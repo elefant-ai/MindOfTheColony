@@ -87,7 +87,7 @@ public class NpcInteractionConfig {
         data.conversation.minTurns = 2;
         data.conversation.maxTurns = 5;
         data.conversation.turnDelayTicks = 60;  // ~3 seconds
-        data.conversation.responseTimeoutTicks = 200;  // ~10 seconds
+        data.conversation.responseTimeoutTicks = 600;  // ~30 seconds (API can be slow)
 
         // Player visibility
         data.playerVisibility = new PlayerVisibilityConfig();
@@ -106,6 +106,14 @@ public class NpcInteractionConfig {
         data.relationship.affinityLossOnArgument = 0.1f;
         data.relationship.friendlyThreshold = 0.5f;
         data.relationship.acquaintanceThreshold = 0.0f;
+
+        // NPC -> Player greeting settings
+        data.playerGreeting = new PlayerGreetingConfig();
+        data.playerGreeting.enabled = true;
+        data.playerGreeting.greetingRadius = 8.0;  // blocks
+        data.playerGreeting.greetingChance = 0.15;  // 15% chance per check when player nearby
+        data.playerGreeting.cooldownTicks = 6000;  // ~5 minutes before same NPC greets same player
+        data.playerGreeting.globalCooldownTicks = 200;  // ~10 seconds between any NPC greeting a player
 
         return data;
     }
@@ -146,6 +154,12 @@ public class NpcInteractionConfig {
             : getDefaultConfig().relationship;
     }
 
+    public static PlayerGreetingConfig getPlayerGreetingConfig() {
+        return config != null && config.playerGreeting != null
+            ? config.playerGreeting
+            : getDefaultConfig().playerGreeting;
+    }
+
     // --- Config Data Classes ---
 
     public static class NpcInteractionConfigData {
@@ -155,6 +169,7 @@ public class NpcInteractionConfig {
         public PlayerVisibilityConfig playerVisibility;
         public PerformanceConfig performance;
         public RelationshipConfig relationship;
+        public PlayerGreetingConfig playerGreeting;
     }
 
     public static class ProximityConfig {
@@ -188,5 +203,13 @@ public class NpcInteractionConfig {
         public float affinityLossOnArgument;
         public float friendlyThreshold;
         public float acquaintanceThreshold;
+    }
+
+    public static class PlayerGreetingConfig {
+        public boolean enabled;
+        public double greetingRadius;
+        public double greetingChance;
+        public int cooldownTicks;
+        public int globalCooldownTicks;
     }
 }

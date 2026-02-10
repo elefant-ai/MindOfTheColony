@@ -22,6 +22,7 @@ import org.slf4j.LoggerFactory;
 import javax.annotation.Nullable;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.UUID;
 
 /**
  * Manages NPC-to-NPC conversations for a colony.
@@ -38,6 +39,12 @@ public class NpcConversationManager {
     private final Map<Integer, Long> citizenCooldowns = new HashMap<>();  // citizenId -> nextAvailableTick
     private final Map<Long, CitizenRelationship> relationships = new HashMap<>();  // key -> relationship
     private final Random random = new Random();
+
+    // NPC -> Player greeting cooldowns
+    // Key: (citizenId << 32) | (playerUUID.hashCode() & 0xFFFFFFFFL)
+    private final Map<Long, Long> playerGreetingCooldowns = new HashMap<>();
+    // Global cooldown per player (any NPC greeting them)
+    private final Map<UUID, Long> playerGlobalGreetingCooldowns = new HashMap<>();
 
     private NpcConversationManager(int colonyId) {
         this.colonyId = colonyId;
@@ -208,6 +215,63 @@ public class NpcConversationManager {
         return relationships.get(key);
     }
 
+    // --- NPC -> Player Greeting Methods ---
+
+    /**
+     * Check if an NPC can greet a specific player (not on cooldown).
+     */
+    public boolean canGreetPlayer(int citizenId, UUID playerUuid, long currentTick) {
+        var greetingConfig = NpcInteractionConfig.getPlayerGreetingConfig();
+        if (!greetingConfig.enabled) {
+            return false;
+        }
+
+        // Check if citizen is busy (in conversation or chatting)
+        if (isInConversation(citizenId)) {
+            return false;
+        }
+        if (CitizenNpcManager.getInstance().getChattingPlayer(citizenId) != null) {
+            return false;
+        }
+
+        // Check global cooldown for this player (any NPC)
+        Long globalCooldown = playerGlobalGreetingCooldowns.get(playerUuid);
+        if (globalCooldown != null && currentTick < globalCooldown) {
+            return false;
+        }
+
+        // Check specific citizen -> player cooldown
+        long key = makePlayerGreetingKey(citizenId, playerUuid);
+        Long specificCooldown = playerGreetingCooldowns.get(key);
+        if (specificCooldown != null && currentTick < specificCooldown) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Record that an NPC greeted a player, setting cooldowns.
+     */
+    public void recordPlayerGreeting(int citizenId, UUID playerUuid, long currentTick) {
+        var greetingConfig = NpcInteractionConfig.getPlayerGreetingConfig();
+
+        // Set specific citizen -> player cooldown
+        long key = makePlayerGreetingKey(citizenId, playerUuid);
+        playerGreetingCooldowns.put(key, currentTick + greetingConfig.cooldownTicks);
+
+        // Set global cooldown for this player
+        playerGlobalGreetingCooldowns.put(playerUuid, currentTick + greetingConfig.globalCooldownTicks);
+
+        LOGGER.debug("Recorded player greeting: citizen {} -> player {}, next specific={}, next global={}",
+            citizenId, playerUuid, currentTick + greetingConfig.cooldownTicks,
+            currentTick + greetingConfig.globalCooldownTicks);
+    }
+
+    private long makePlayerGreetingKey(int citizenId, UUID playerUuid) {
+        return ((long) citizenId << 32) | (playerUuid.hashCode() & 0xFFFFFFFFL);
+    }
+
     /**
      * Called each tick to process conversations.
      */
@@ -229,15 +293,15 @@ public class NpcConversationManager {
 
             // Check for timeout
             if (conversation.hasTimedOut(currentTick)) {
-                LOGGER.debug("Conversation timed out: {}", conversation);
+                LOGGER.info("Conversation timed out: {}", conversation);
                 endConversation(conversation, false);
                 iterator.remove();
                 continue;
             }
 
             // Check if citizens are still nearby
-            if (!areCitizensNearby(conversation, colony)) {
-                LOGGER.debug("Citizens moved apart: {}", conversation);
+            if (!areCitizensNearby(conversation, colony, currentTick)) {
+                LOGGER.info("Citizens moved apart: {}", conversation);
                 endConversation(conversation, false);
                 iterator.remove();
                 continue;
@@ -245,7 +309,7 @@ public class NpcConversationManager {
 
             // Check if player interrupted
             if (wasInterruptedByPlayer(conversation)) {
-                LOGGER.debug("Conversation interrupted by player: {}", conversation);
+                LOGGER.info("Conversation interrupted by player: {}", conversation);
                 endConversation(conversation, false);
                 iterator.remove();
                 continue;
@@ -261,11 +325,19 @@ public class NpcConversationManager {
     /**
      * Check if the two citizens in a conversation are still nearby.
      */
-    private boolean areCitizensNearby(NpcConversation conversation, IColony colony) {
+    private boolean areCitizensNearby(NpcConversation conversation, IColony colony, long currentTick) {
+        // Grace period: Skip distance check for first 30 seconds (600 ticks) to allow conversation to complete
+        // This prevents conversations ending due to minor position changes during the chat
+        long ticksSinceStart = currentTick - conversation.getStartTick();
+        if (ticksSinceStart < 600) {
+            return true;
+        }
+
         ICitizenData citizen1 = colony.getCitizenManager().getCivilian(conversation.getInitiatorId());
         ICitizenData citizen2 = colony.getCitizenManager().getCivilian(conversation.getResponderId());
 
         if (citizen1 == null || citizen2 == null) {
+            LOGGER.debug("Citizen data not found: citizen1={}, citizen2={}", citizen1 != null, citizen2 != null);
             return false;
         }
 
@@ -273,12 +345,21 @@ public class NpcConversationManager {
         var entity2 = citizen2.getEntity();
 
         if (entity1.isEmpty() || entity2.isEmpty()) {
+            LOGGER.debug("Entity not present: entity1={}, entity2={}",
+                entity1.isPresent(), entity2.isPresent());
             return false;
         }
 
         double radius = NpcInteractionConfig.getProximityConfig().interactionRadius * 1.5;
         double distSq = entity1.get().distanceToSqr(entity2.get());
-        return distSq <= radius * radius;
+        boolean nearby = distSq <= radius * radius;
+
+        if (!nearby) {
+            LOGGER.debug("Citizens too far apart: distance={}, max radius={}",
+                Math.sqrt(distSq), radius);
+        }
+
+        return nearby;
     }
 
     /**
@@ -296,11 +377,15 @@ public class NpcConversationManager {
         int speakerId = conversation.getCurrentSpeakerId();
         int listenerId = conversation.getListenerId();
 
+        LOGGER.info("Processing turn {} for conversation {}: speaker={}, listener={}",
+            conversation.getCurrentTurn(), conversation, speakerId, listenerId);
+
         CitizenNpcBridge speakerBridge = CitizenNpcManager.getInstance().getBridge(speakerId);
         CitizenNpcBridge listenerBridge = CitizenNpcManager.getInstance().getBridge(listenerId);
 
         if (speakerBridge == null || !speakerBridge.isReady()) {
-            LOGGER.debug("Speaker bridge not ready, aborting conversation");
+            LOGGER.warn("Speaker bridge not ready (bridge={}, ready={}), aborting conversation",
+                speakerBridge != null, speakerBridge != null && speakerBridge.isReady());
             endConversation(conversation, false);
             return;
         }
@@ -309,7 +394,7 @@ public class NpcConversationManager {
         ICitizenData listenerData = listenerBridge != null ? listenerBridge.getCitizenData() : null;
 
         if (listenerData == null) {
-            LOGGER.debug("Listener data not available, aborting conversation");
+            LOGGER.warn("Listener data not available, aborting conversation");
             endConversation(conversation, false);
             return;
         }
@@ -323,7 +408,7 @@ public class NpcConversationManager {
         // Send to NPC
         speakerBridge.sendNpcToNpcMessage(listenerData.getName(), prompt, colonyId);
 
-        LOGGER.debug("Sent turn {} to speaker {}: {}",
+        LOGGER.info("Sent turn {} to speaker {}: {}",
             conversation.getCurrentTurn(), speakerData.getName(), prompt);
     }
 
@@ -408,7 +493,10 @@ public class NpcConversationManager {
      * Handle response from an NPC that's in a conversation.
      */
     public void handleResponse(NpcConversation conversation, int speakerId, String message) {
+        LOGGER.info("Received NPC-NPC response from citizen {}: {}", speakerId, message);
+
         if (conversation.isFinished()) {
+            LOGGER.warn("Conversation already finished, ignoring response");
             return;
         }
 
@@ -420,19 +508,22 @@ public class NpcConversationManager {
 
         long currentTick = getCurrentTick();
 
-        // Handle the response
+        // Capture listener ID BEFORE handleResponse switches the speaker
+        int listenerId = conversation.getListenerId();
+
+        // Handle the response (this switches currentSpeakerId)
         conversation.handleResponse(message, currentTick);
 
         // Get speaker info for broadcast
         CitizenNpcBridge speakerBridge = CitizenNpcManager.getInstance().getBridge(speakerId);
-        CitizenNpcBridge listenerBridge = CitizenNpcManager.getInstance().getBridge(conversation.getListenerId());
+        CitizenNpcBridge listenerBridge = CitizenNpcManager.getInstance().getBridge(listenerId);
 
         String speakerName = speakerBridge != null ? speakerBridge.getCitizenData().getName() : "Unknown";
         String listenerName = listenerBridge != null ? listenerBridge.getCitizenData().getName() : "Unknown";
 
         // Broadcast to nearby players
         broadcastToNearbyPlayers(conversation, speakerId, speakerName,
-            conversation.getListenerId(), listenerName, message,
+            listenerId, listenerName, message,
             conversation.getCurrentTurn() == 1,
             conversation.shouldEnd());
 

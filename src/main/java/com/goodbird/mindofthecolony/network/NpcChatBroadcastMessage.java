@@ -66,21 +66,54 @@ public record NpcChatBroadcastMessage(
         return TYPE;
     }
 
+    // Color palette for NPC names (avoiding dark colors for readability)
+    private static final ChatFormatting[] NAME_COLORS = {
+        ChatFormatting.AQUA,
+        ChatFormatting.GREEN,
+        ChatFormatting.LIGHT_PURPLE,
+        ChatFormatting.YELLOW,
+        ChatFormatting.GOLD,
+        ChatFormatting.BLUE,
+        ChatFormatting.RED
+    };
+
+    /**
+     * Get a consistent color for a citizen based on their ID.
+     * Uses the conversation pair to ensure both get different colors.
+     */
+    private static ChatFormatting getColorForCitizen(int citizenId, int otherId) {
+        // Use citizen ID to pick a base color
+        int colorIndex = Math.abs(citizenId) % NAME_COLORS.length;
+        ChatFormatting color = NAME_COLORS[colorIndex];
+
+        // If other citizen would get the same color, shift this one
+        int otherColorIndex = Math.abs(otherId) % NAME_COLORS.length;
+        if (colorIndex == otherColorIndex) {
+            colorIndex = (colorIndex + 1) % NAME_COLORS.length;
+            color = NAME_COLORS[colorIndex];
+        }
+
+        return color;
+    }
+
     /**
      * Handle the message on the client side.
      */
     public static void handle(NpcChatBroadcastMessage msg, IPayloadContext ctx) {
         ctx.enqueueWork(() -> {
-            // Format the message for chat display
-            String format = NpcInteractionConfig.getPlayerVisibilityConfig().chatFormat;
-            String formattedMessage = format
-                .replace("%speaker%", msg.speakerName())
-                .replace("%listener%", msg.listenerName())
-                .replace("%message%", msg.message());
+            // Get consistent colors for this conversation pair
+            ChatFormatting speakerColor = getColorForCitizen(msg.speakerId(), msg.listenerId());
+            ChatFormatting listenerColor = getColorForCitizen(msg.listenerId(), msg.speakerId());
 
-            // Create chat component with styling
-            Component chatComponent = Component.literal(formattedMessage)
-                .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC);
+            // Build the chat message with colored names
+            // Format: [SpeakerName] (to ListenerName): message
+            Component chatComponent = Component.literal("[")
+                .withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(msg.speakerName()).withStyle(speakerColor))
+                .append(Component.literal("] (to ").withStyle(ChatFormatting.GRAY))
+                .append(Component.literal(msg.listenerName()).withStyle(listenerColor))
+                .append(Component.literal("): ").withStyle(ChatFormatting.GRAY))
+                .append(Component.literal(msg.message()).withStyle(ChatFormatting.WHITE));
 
             // Display in Minecraft chat
             Minecraft minecraft = Minecraft.getInstance();

@@ -125,6 +125,23 @@ public class CitizenRelationship {
         return 1.0f + (affinity * 0.5f);
     }
 
+    /**
+     * Checks if enough time has passed since the last conversation between this pair.
+     * Friends can talk again sooner, strangers/rivals need longer cooldowns.
+     */
+    public boolean isPairCooldownExpired(long currentTick, int minCooldownTicks, int maxCooldownTicks) {
+        if (lastConversationTick == 0) {
+            return true;  // Never talked before
+        }
+        // Base cooldown is the average of min and max
+        int baseCooldown = minCooldownTicks + (maxCooldownTicks - minCooldownTicks) / 2;
+        // Friends have shorter cooldowns (0.7x), rivals have longer (1.3x)
+        float affinityModifier = 1.0f - (affinity * 0.3f);
+        int pairCooldown = (int) (baseCooldown * affinityModifier);
+
+        return currentTick - lastConversationTick >= pairCooldown;
+    }
+
     public CompoundTag toNBT() {
         CompoundTag tag = new CompoundTag();
         tag.putInt("citizen1Id", citizen1Id);
