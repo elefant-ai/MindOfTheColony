@@ -6,8 +6,12 @@ import com.goodbird.mindofthecolony.effect.TemporaryTrait;
 import com.goodbird.mindofthecolony.mixin.IExtendedCitizenData;
 import com.goodbird.mindofthecolony.status.AgentStatus;
 import com.minecolonies.api.colony.ICitizenData;
+import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.jobs.IJob;
+import com.minecolonies.api.colony.permissions.IPermissions;
+import com.minecolonies.api.colony.permissions.Rank;
 import game.player2.npc.Player2NpcLib;
+import net.minecraft.server.level.ServerPlayer;
 import game.player2.npc.api.NpcHandle;
 import net.minecraft.world.entity.player.Player;
 import org.slf4j.Logger;
@@ -178,15 +182,53 @@ public class CitizenNpcBridge {
     }
 
     /**
+     * Gets context about a player's relationship to the colony.
+     * Returns info like "Steve is the owner of this colony" or "Alex is an outsider".
+     */
+    public String getPlayerContext(ServerPlayer player) {
+        IColony colony = citizenData.getColony();
+        IPermissions perms = colony.getPermissions();
+
+        Rank rank = perms.getRank(player);
+        String relationship;
+
+        if (rank.getId() == IPermissions.OWNER_RANK_ID) {
+            relationship = "the owner of this colony";
+        } else if (rank.getId() == IPermissions.OFFICER_RANK_ID) {
+            relationship = "an officer of this colony";
+        } else if (rank.getId() == IPermissions.FRIEND_RANK_ID) {
+            relationship = "a friend of this colony";
+        } else if (rank.getId() == IPermissions.HOSTILE_RANK_ID) {
+            relationship = "hostile to this colony";
+        } else if (perms.isColonyMember(player)) {
+            relationship = "a member of this colony";
+        } else {
+            relationship = "an outsider (not part of this colony)";
+        }
+
+        return "[" + player.getName().getString() + " is " + relationship + "]";
+    }
+
+    /**
      * Sends a player message to the NPC.
      */
     public void sendPlayerMessage(String playerName, String message) {
+        sendPlayerMessage(playerName, message, null);
+    }
+
+    /**
+     * Sends a player message to the NPC with additional player context.
+     */
+    public void sendPlayerMessage(String playerName, String message, @Nullable String playerContext) {
         if (!ready || npcHandle == null) {
             LOGGER.warn("NPC not ready for citizen: {}", citizenData.getName());
             return;
         }
 
         String context = getGameStateContext();
+        if (playerContext != null) {
+            context += "\n" + playerContext;
+        }
         npcHandle.chat(playerName, message, context);
     }
 

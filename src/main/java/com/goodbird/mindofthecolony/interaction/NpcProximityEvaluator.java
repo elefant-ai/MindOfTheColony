@@ -208,9 +208,12 @@ public class NpcProximityEvaluator implements EventEvaluator {
         // Generate a greeting prompt
         String prompt = generateGreetingPrompt(citizen, player);
 
+        // Get player's relationship to the colony (owner, officer, friend, etc.)
+        String playerContext = bridge.getPlayerContext(player);
+
         // Send to the NPC - the response will be routed to the player
         // We use the player's name so the NPC knows who they're talking to
-        bridge.sendPlayerMessage(player.getName().getString(), prompt);
+        bridge.sendPlayerMessage(player.getName().getString(), prompt, playerContext);
 
         LOGGER.debug("Sent greeting prompt to {} for player {}: {}",
             citizen.getName(), player.getName().getString(), prompt);
