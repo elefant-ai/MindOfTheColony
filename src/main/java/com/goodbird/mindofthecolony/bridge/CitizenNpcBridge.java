@@ -18,7 +18,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -38,6 +40,9 @@ public class CitizenNpcBridge {
     private NpcHandle npcHandle;
     private CompletableFuture<UUID> pendingSpawn;
     private boolean ready = false;
+
+    // Track how many times this citizen has chatted with each player
+    private final Map<UUID, Integer> playerChatCounts = new HashMap<>();
 
     // Heartbeat tracking
     private static long lastHeartbeatTime = System.nanoTime();
@@ -182,31 +187,96 @@ public class CitizenNpcBridge {
     }
 
     /**
-     * Gets context about a player's relationship to the colony.
-     * Returns info like "Steve is the owner of this colony" or "Alex is an outsider".
+     * Gets the number of times this citizen has chatted with a player.
+     */
+    public int getPlayerChatCount(UUID playerUuid) {
+        return playerChatCounts.getOrDefault(playerUuid, 0);
+    }
+
+    /**
+     * Increments the chat count for a player.
+     */
+    public void incrementPlayerChatCount(UUID playerUuid) {
+        playerChatCounts.merge(playerUuid, 1, Integer::sum);
+    }
+
+    /**
+     * Gets rich context about a player for NPC awareness.
+     * Includes colony relationship, what they're holding, armor, time of day, and chat history.
      */
     public String getPlayerContext(ServerPlayer player) {
+        StringBuilder context = new StringBuilder();
         IColony colony = citizenData.getColony();
         IPermissions perms = colony.getPermissions();
 
+        // Colony relationship
         Rank rank = perms.getRank(player);
-        String relationship;
+        String relationship = getRelationshipString(rank, perms, player);
+        context.append("[").append(player.getName().getString())
+               .append(" is ").append(relationship).append("]\n");
 
-        if (rank.getId() == IPermissions.OWNER_RANK_ID) {
-            relationship = "the owner of this colony";
-        } else if (rank.getId() == IPermissions.OFFICER_RANK_ID) {
-            relationship = "an officer of this colony";
-        } else if (rank.getId() == IPermissions.FRIEND_RANK_ID) {
-            relationship = "a friend of this colony";
-        } else if (rank.getId() == IPermissions.HOSTILE_RANK_ID) {
-            relationship = "hostile to this colony";
-        } else if (perms.isColonyMember(player)) {
-            relationship = "a member of this colony";
-        } else {
-            relationship = "an outsider (not part of this colony)";
+        // What player is holding
+        net.minecraft.world.item.ItemStack mainHand = player.getMainHandItem();
+        if (!mainHand.isEmpty()) {
+            String itemName = mainHand.getHoverName().getString();
+            context.append("[Player is holding: ").append(itemName).append("]\n");
         }
 
-        return "[" + player.getName().getString() + " is " + relationship + "]";
+        // Sneaking
+        if (player.isShiftKeyDown()) {
+            context.append("[Player is sneaking]\n");
+        }
+
+        // Armor level
+        int armor = player.getArmorValue();
+        if (armor >= 15) {
+            context.append("[Player is heavily armored]\n");
+        } else if (armor >= 8) {
+            context.append("[Player is wearing some armor]\n");
+        } else if (armor > 0) {
+            context.append("[Player is lightly armored]\n");
+        }
+
+        // Time of day
+        long dayTime = player.level().getDayTime() % 24000;
+        String timeOfDay = getTimeOfDayString(dayTime);
+        context.append("[Time: ").append(timeOfDay).append("]\n");
+
+        // Chat history with this player
+        int chatCount = getPlayerChatCount(player.getUUID());
+        if (chatCount == 0) {
+            context.append("[You have never spoken to this player before]\n");
+        } else if (chatCount == 1) {
+            context.append("[You have spoken to this player once before]\n");
+        } else {
+            context.append("[You have spoken to this player ")
+                   .append(chatCount).append(" times before]\n");
+        }
+
+        return context.toString().trim();
+    }
+
+    private String getRelationshipString(Rank rank, IPermissions perms, ServerPlayer player) {
+        if (rank.getId() == IPermissions.OWNER_RANK_ID) {
+            return "the owner of this colony";
+        } else if (rank.getId() == IPermissions.OFFICER_RANK_ID) {
+            return "an officer of this colony";
+        } else if (rank.getId() == IPermissions.FRIEND_RANK_ID) {
+            return "a friend of this colony";
+        } else if (rank.getId() == IPermissions.HOSTILE_RANK_ID) {
+            return "hostile to this colony";
+        } else if (perms.isColonyMember(player)) {
+            return "a member of this colony";
+        } else {
+            return "an outsider (not part of this colony)";
+        }
+    }
+
+    private String getTimeOfDayString(long dayTime) {
+        if (dayTime < 6000) return "night";
+        if (dayTime < 12000) return "morning";
+        if (dayTime < 18000) return "afternoon";
+        return "evening";
     }
 
     /**
