@@ -255,7 +255,7 @@ public class NpcProximityEvaluator implements EventEvaluator {
             }
 
             BlockPos pos = citizen.getEntity().get().blockPosition();
-            long cellKey = packCell(pos.getX() / cellSize, pos.getZ() / cellSize);
+            long cellKey = packCell(Math.floorDiv(pos.getX(), cellSize), Math.floorDiv(pos.getZ(), cellSize));
             grid.computeIfAbsent(cellKey, k -> new ArrayList<>()).add(citizen);
         }
 
