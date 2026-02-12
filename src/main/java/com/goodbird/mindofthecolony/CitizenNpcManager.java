@@ -7,6 +7,7 @@ import com.goodbird.mindofthecolony.event.ColonyEventManager;
 import com.goodbird.mindofthecolony.event.evaluator.DiseaseOutbreakEvaluator;
 import com.goodbird.mindofthecolony.event.evaluator.WeatherEventEvaluator;
 import com.goodbird.mindofthecolony.mixin.IExtendedCitizenData;
+import com.goodbird.mindofthecolony.voice.VoiceSelectionService;
 import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.ICivilianData;
 import com.minecolonies.api.colony.IColony;
@@ -143,6 +144,21 @@ public class CitizenNpcManager {
      * Spawns the NPC for a citizen after their background is ready.
      */
     private void spawnNpcForCitizen(CitizenNpcBridge bridge, ICitizenData citizenData) {
+        // Select a TTS voice if not already assigned
+        if (citizenData instanceof IExtendedCitizenData extData && extData.getVoiceId() == null) {
+            VoiceSelectionService.getInstance().selectVoice(citizenData)
+                .thenAccept(voiceId -> {
+                    if (voiceId != null) {
+                        extData.setVoiceId(voiceId);
+                        LOGGER.info("Voice selected for citizen {}: {}", citizenData.getName(), voiceId);
+                    }
+                })
+                .exceptionally(ex -> {
+                    LOGGER.error("Voice selection failed for citizen {}: {}", citizenData.getName(), ex.getMessage());
+                    return null;
+                });
+        }
+
         bridge.spawn().thenAccept(npcId -> {
             if (npcId != null) {
                 npcToCitizen.put(npcId, citizenData.getId());
@@ -353,6 +369,9 @@ public class CitizenNpcManager {
 
         // Shutdown background generation service
         BackgroundGenerationService.getInstance().shutdown();
+
+        // Shutdown voice selection service
+        VoiceSelectionService.getInstance().shutdown();
 
         // Shutdown the java-npc library
         Player2NpcLib.shutdown();

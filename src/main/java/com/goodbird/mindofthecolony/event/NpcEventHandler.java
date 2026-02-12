@@ -2,7 +2,12 @@ package com.goodbird.mindofthecolony.event;
 
 import com.goodbird.mindofthecolony.CitizenNpcManager;
 import com.goodbird.mindofthecolony.bridge.CitizenNpcBridge;
+import com.goodbird.mindofthecolony.config.ModSettings;
+import com.goodbird.mindofthecolony.mixin.IExtendedCitizenData;
 import com.goodbird.mindofthecolony.network.AIChatResponseMessage;
+import com.goodbird.mindofthecolony.network.TtsAudioMessage;
+import game.player2.npc.Player2NpcLib;
+import game.player2.npc.dto.TtsSpeakRequest;
 import game.player2.npc.event.NpcCommandEvent;
 import game.player2.npc.event.NpcConnectionEvent;
 import game.player2.npc.event.NpcErrorEvent;
@@ -12,6 +17,9 @@ import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.Base64;
+import java.util.List;
 
 /**
  * Handles events from the java-npc library.
@@ -45,6 +53,45 @@ public class NpcEventHandler implements Player2EventListener {
                 citizenName,
                 message
             ));
+
+            // Speak the response aloud via TTS if enabled
+            if (ModSettings.TTS_ENABLED.get()) {
+                double speed = ModSettings.TTS_SPEED.get();
+                String voiceId = null;
+                if (bridge.getCitizenData() instanceof IExtendedCitizenData extData) {
+                    voiceId = extData.getVoiceId();
+                }
+
+                // Get the citizen's entity ID for positional audio
+                int entityId = bridge.getCitizenData().getEntity()
+                    .map(e -> e.getId())
+                    .orElse(-1);
+
+                // Use citizen's gender as a hard constraint on the TTS API
+                String voiceGender = bridge.getCitizenData().isFemale() ? "female" : "male";
+
+                // Request audio data (play_in_app=false) for 3D positional playback
+                TtsSpeakRequest ttsRequest = new TtsSpeakRequest(
+                    message, false, speed,
+                    voiceId != null ? List.of(voiceId) : null,
+                    voiceGender, null, "wav", null
+                );
+
+                Player2NpcLib.ttsSpeak(ttsRequest)
+                    .thenAccept(response -> {
+                        String data = response.getData();
+                        if (data != null && !data.isEmpty()) {
+                            byte[] audioBytes = Base64.getDecoder().decode(data);
+                            PacketDistributor.sendToPlayer(chattingPlayer,
+                                new TtsAudioMessage(entityId, audioBytes));
+                        }
+                    })
+                    .exceptionally(ex -> {
+                        LOGGER.warn("TTS failed for {}: {}", citizenName, ex.getMessage());
+                        return null;
+                    });
+            }
+
             LOGGER.debug("Sent response from {} to player {}: {}",
                 citizenName, chattingPlayer.getName().getString(), message);
         } else {

@@ -40,4 +40,9 @@ public interface IExtendedCitizenData {
      * Check if this citizen has a specific temporary trait.
      */
     boolean hasTemporaryTrait(String traitId);
+
+    @Nullable
+    String getVoiceId();
+
+    void setVoiceId(@Nullable String voiceId);
 }

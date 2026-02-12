@@ -78,6 +78,7 @@ public class ChatWindowCitizen extends BOWindow implements ButtonHandler {
     public void onClosed() {
         super.onClosed();
         ClientChatHandler.removeMessageListener(messageListener);
+        ClientAudioPlayer.stop();
     }
 
     @Override
