@@ -11,6 +11,7 @@ import com.minecolonies.api.colony.jobs.IJob;
 import com.minecolonies.api.colony.permissions.IPermissions;
 import com.minecolonies.api.colony.permissions.Rank;
 import game.player2.npc.Player2NpcLib;
+import game.player2.npc.api.NpcFunction;
 import net.minecraft.server.level.ServerPlayer;
 import game.player2.npc.api.NpcHandle;
 import net.minecraft.world.entity.player.Player;
@@ -69,6 +70,12 @@ public class CitizenNpcBridge {
             .description(description)
             .systemPrompt(systemPrompt);
 
+        // Add work preference functions for builders
+        if (isBuilder()) {
+            builder.withFunction(createSetWorkPreferenceFunction())
+                   .withFunction(createSetBuildingPreferenceFunction());
+        }
+
         // If we have an existing NPC ID, resume from it to restore memories
         if (existingNpcId != null) {
             builder.resumeFrom(existingNpcId);
@@ -108,6 +115,21 @@ public class CitizenNpcBridge {
             }
         }
 
+        // Add work preferences section for builders
+        String workPreferencesSection = "";
+        if (isBuilder()) {
+            workPreferencesSection = """
+
+            WORK PREFERENCES:
+            As a builder, you can express preferences about what work you'd like to do.
+            - Use set_work_preference to indicate if you prefer certain work categories (building, decoration, miner, plantation_field) or actions (BUILD, UPGRADE, REPAIR, REMOVE)
+            - Use set_building_preference to indicate if you prefer or dislike building specific structures (e.g., 'residence', 'barracks', 'farm')
+            - Only express preferences based on your personality and backstory - don't overuse these
+            - Preferences range from -10 (strongly avoid) to 10 (strongly prefer)
+            - Your preferences will influence which work orders you're assigned
+            """;
+        }
+
         return """
             You are %s, a %s living in the colony of %s in the world of Minecraft.
 
@@ -117,6 +139,7 @@ public class CitizenNpcBridge {
             - Current mood: %s
             - Happiness level: %.1f/10
 
+            %s
             %s
 
             GUIDELINES:
@@ -140,7 +163,8 @@ public class CitizenNpcBridge {
                 age,
                 getMoodDescription(happiness),
                 happiness,
-                backgroundSection
+                backgroundSection,
+                workPreferencesSection
             );
     }
 
@@ -277,6 +301,43 @@ public class CitizenNpcBridge {
         if (dayTime < 12000) return "morning";
         if (dayTime < 18000) return "afternoon";
         return "evening";
+    }
+
+    /**
+     * Check if this citizen is a builder (can have work preferences).
+     */
+    private boolean isBuilder() {
+        IJob<?> job = citizenData.getJob();
+        if (job == null) return false;
+        String jobName = job.getJobRegistryEntry().getKey().getPath().toLowerCase();
+        return jobName.equals("builder") || jobName.equals("miner");
+    }
+
+    /**
+     * Create the set_work_preference NpcFunction.
+     */
+    private NpcFunction createSetWorkPreferenceFunction() {
+        return NpcFunction.builder("set_work_preference")
+            .description("Express a preference for certain types of work. Use this to influence which work orders you are assigned. Only call this if you have a strong opinion based on your personality.")
+            .addEnumParameter("category", "The work category to set preference for", true,
+                "building", "decoration", "miner", "plantation_field")
+            .addEnumParameter("action", "The work action type (optional)", false,
+                "BUILD", "UPGRADE", "REPAIR", "REMOVE")
+            .addIntParameter("preference", "Preference level from -10 (strongly avoid) to 10 (strongly prefer). 0 is neutral.", true)
+            .neverRespondWithMessage(true)
+            .build();
+    }
+
+    /**
+     * Create the set_building_preference NpcFunction.
+     */
+    private NpcFunction createSetBuildingPreferenceFunction() {
+        return NpcFunction.builder("set_building_preference")
+            .description("Express a preference for building specific structure types. Use this when you have strong opinions about particular buildings based on your personality.")
+            .addStringParameter("building_type", "The type of building (e.g., 'residence', 'barracks', 'farm', 'warehouse', 'library', 'tavern')", true)
+            .addIntParameter("preference", "Preference level from -10 (strongly avoid) to 10 (strongly prefer). 0 is neutral.", true)
+            .neverRespondWithMessage(true)
+            .build();
     }
 
     /**
