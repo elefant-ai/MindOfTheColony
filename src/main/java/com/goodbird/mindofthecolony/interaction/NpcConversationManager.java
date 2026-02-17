@@ -161,7 +161,7 @@ public class NpcConversationManager {
         // Update relationship
         CitizenRelationship relationship = getOrCreateRelationship(
             conversation.getInitiatorId(), conversation.getResponderId());
-        relationship.recordConversation(conversation.getStartTick(), completedSuccessfully);
+        relationship.recordConversation(getCurrentTick(), completedSuccessfully);
 
         // Apply cooldowns
         applyCooldown(conversation.getInitiatorId());

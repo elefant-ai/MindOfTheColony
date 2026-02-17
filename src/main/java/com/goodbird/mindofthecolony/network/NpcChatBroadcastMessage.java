@@ -82,12 +82,12 @@ public record NpcChatBroadcastMessage(
      * Uses the conversation pair to ensure both get different colors.
      */
     private static ChatFormatting getColorForCitizen(int citizenId, int otherId) {
-        // Use citizen ID to pick a base color
-        int colorIndex = Math.abs(citizenId) % NAME_COLORS.length;
+        // Use citizen ID to pick a base color (bitwise AND avoids Integer.MIN_VALUE overflow)
+        int colorIndex = (citizenId & Integer.MAX_VALUE) % NAME_COLORS.length;
         ChatFormatting color = NAME_COLORS[colorIndex];
 
         // If other citizen would get the same color, shift this one
-        int otherColorIndex = Math.abs(otherId) % NAME_COLORS.length;
+        int otherColorIndex = (otherId & Integer.MAX_VALUE) % NAME_COLORS.length;
         if (colorIndex == otherColorIndex) {
             colorIndex = (colorIndex + 1) % NAME_COLORS.length;
             color = NAME_COLORS[colorIndex];

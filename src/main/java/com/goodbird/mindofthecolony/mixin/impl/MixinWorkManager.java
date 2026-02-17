@@ -79,7 +79,11 @@ public abstract class MixinWorkManager {
                     continue;
                 }
 
-                ICitizenData citizen = building.getFirstModuleOccurance(WorkerBuildingModule.class).getFirstCitizen();
+                WorkerBuildingModule module = building.getModule(WorkerBuildingModule.class);
+                if (module == null) {
+                    continue;
+                }
+                ICitizenData citizen = module.getFirstCitizen();
                 if (citizen == null) {
                     continue;
                 }
