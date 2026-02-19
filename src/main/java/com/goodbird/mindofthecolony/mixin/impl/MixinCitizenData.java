@@ -72,6 +72,9 @@ public abstract class MixinCitizenData implements IExtendedCitizenData {
     private final List<TemporaryTrait> mindOfTheColony$temporaryTraits = new ArrayList<>();
 
     @Unique
+    private String mindOfTheColony$voiceId = null;
+
+    @Unique
     private WorkPreferences mindOfTheColony$workPreferences = new WorkPreferences();
 
     @Inject(method = "deserializeNBT", at = @At("TAIL"), remap = false)
@@ -86,6 +89,9 @@ public abstract class MixinCitizenData implements IExtendedCitizenData {
             } catch (IllegalArgumentException e) {
                 this.mindOfTheColony$npcId = null;
             }
+        }
+        if (compound.contains("aiVoiceId", Tag.TAG_STRING)) {
+            this.mindOfTheColony$voiceId = compound.getString("aiVoiceId");
         }
         if (compound.contains("citizenBackground", Tag.TAG_COMPOUND)) {
             this.mindOfTheColony$citizenBackground = CitizenBackground.fromNBT(compound.getCompound("citizenBackground"));
@@ -190,6 +196,9 @@ public abstract class MixinCitizenData implements IExtendedCitizenData {
         // Save NPC ID for restoring memories on reload
         if (this.mindOfTheColony$npcId != null) {
             compound.putString("aiNpcId", this.mindOfTheColony$npcId.toString());
+        }
+        if (this.mindOfTheColony$voiceId != null) {
+            compound.putString("aiVoiceId", this.mindOfTheColony$voiceId);
         }
         // Save temporary modifiers
         if (!this.mindOfTheColony$temporaryModifiers.isEmpty()) {
@@ -538,6 +547,19 @@ public abstract class MixinCitizenData implements IExtendedCitizenData {
     @Override
     public void setNpcId(@Nullable UUID npcId) {
         this.mindOfTheColony$npcId = npcId;
+    }
+
+    @Override
+    @Nullable
+    public String getVoiceId() {
+        return mindOfTheColony$voiceId;
+    }
+
+    @Override
+    public void setVoiceId(@Nullable String voiceId) {
+        this.mindOfTheColony$voiceId = voiceId;
+        CitizenData self = (CitizenData)(Object)this;
+        self.markDirty(0);
     }
 
     @Override

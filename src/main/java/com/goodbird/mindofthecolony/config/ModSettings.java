@@ -18,5 +18,13 @@ public class ModSettings {
         .comment("Language for NPC conversations (e.g., english, spanish, french, german, japanese)")
         .define("npcLanguage", "english");
 
+    public static final ModConfigSpec.BooleanValue TTS_ENABLED = BUILDER
+        .comment("Enable text-to-speech for NPC responses (requires Player2 app)")
+        .define("ttsEnabled", false);
+
+    public static final ModConfigSpec.DoubleValue TTS_SPEED = BUILDER
+        .comment("Text-to-speech speed (0.25-4.0, default 1.0)")
+        .defineInRange("ttsSpeed", 1.0, 0.25, 4.0);
+
     public static final ModConfigSpec SPEC = BUILDER.build();
 }

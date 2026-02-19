@@ -42,6 +42,11 @@ public interface IExtendedCitizenData {
      */
     boolean hasTemporaryTrait(String traitId);
 
+    @Nullable
+    String getVoiceId();
+
+    void setVoiceId(@Nullable String voiceId);
+
     /**
      * Get work preferences for this citizen (used by builders).
      */

@@ -12,11 +12,13 @@ import com.goodbird.mindofthecolony.effect.TemporaryTrait;
 import com.goodbird.mindofthecolony.interaction.CitizenRelationship;
 import com.goodbird.mindofthecolony.interaction.NpcConversation;
 import com.goodbird.mindofthecolony.interaction.NpcConversationManager;
+import game.player2.npc.Player2NpcLib;
 import com.goodbird.mindofthecolony.mixin.IExtendedCitizenData;
 import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.ICivilianData;
 import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.IColonyManager;
+import com.mojang.brigadier.arguments.DoubleArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
@@ -75,8 +77,8 @@ public class MotcCommand {
     public static void onRegisterCommands(RegisterCommandsEvent event) {
         event.getDispatcher().register(
             Commands.literal("motc")
-                .requires(source -> source.hasPermission(2))
                 .then(Commands.literal("language")
+                    .requires(source -> source.hasPermission(2))
                     .then(Commands.argument("lang", StringArgumentType.word())
                         .executes(ctx -> {
                             String lang = StringArgumentType.getString(ctx, "lang");
@@ -99,6 +101,7 @@ public class MotcCommand {
                     })
                 )
                 .then(Commands.literal("regenbackground")
+                    .requires(source -> source.hasPermission(2))
                     .then(Commands.argument("colonyId", IntegerArgumentType.integer(1))
                         .suggests(SUGGEST_COLONIES)
                         .then(Commands.argument("citizenId", IntegerArgumentType.integer(1))
@@ -117,6 +120,7 @@ public class MotcCommand {
                     })
                 )
                 .then(Commands.literal("regenall")
+                    .requires(source -> source.hasPermission(2))
                     .then(Commands.argument("colonyId", IntegerArgumentType.integer(1))
                         .suggests(SUGGEST_COLONIES)
                         .executes(ctx -> {
@@ -131,6 +135,7 @@ public class MotcCommand {
                     })
                 )
                 .then(Commands.literal("regenvisitors")
+                    .requires(source -> source.hasPermission(2))
                     .then(Commands.argument("colonyId", IntegerArgumentType.integer(1))
                         .suggests(SUGGEST_COLONIES)
                         .executes(ctx -> {
@@ -145,6 +150,7 @@ public class MotcCommand {
                     })
                 )
                 .then(Commands.literal("addtrait")
+                    .requires(source -> source.hasPermission(2))
                     .then(Commands.argument("colonyId", IntegerArgumentType.integer(1))
                         .suggests(SUGGEST_COLONIES)
                         .then(Commands.argument("citizenId", IntegerArgumentType.integer())
@@ -178,6 +184,7 @@ public class MotcCommand {
                     })
                 )
                 .then(Commands.literal("removetrait")
+                    .requires(source -> source.hasPermission(2))
                     .then(Commands.argument("colonyId", IntegerArgumentType.integer(1))
                         .suggests(SUGGEST_COLONIES)
                         .then(Commands.argument("citizenId", IntegerArgumentType.integer())
@@ -200,11 +207,13 @@ public class MotcCommand {
                     })
                 )
                 .then(Commands.literal("listtraits")
+                    .requires(source -> source.hasPermission(2))
                     .executes(ctx -> {
                         return listTraits(ctx.getSource().getPlayer());
                     })
                 )
                 .then(Commands.literal("genmissing")
+                    .requires(source -> source.hasPermission(2))
                     .then(Commands.argument("colonyId", IntegerArgumentType.integer(1))
                         .suggests(SUGGEST_COLONIES)
                         .executes(ctx -> {
@@ -218,6 +227,7 @@ public class MotcCommand {
                     })
                 )
                 .then(Commands.literal("status")
+                    .requires(source -> source.hasPermission(2))
                     .then(Commands.argument("colonyId", IntegerArgumentType.integer(1))
                         .suggests(SUGGEST_COLONIES)
                         .executes(ctx -> {
@@ -225,6 +235,63 @@ public class MotcCommand {
                             return showStatus(ctx.getSource().getPlayer(), colonyId);
                         })
                     )
+                )
+                .then(Commands.literal("tts")
+                    .then(Commands.literal("on")
+                        .executes(ctx -> {
+                            ModSettings.TTS_ENABLED.set(true);
+                            ModSettings.SPEC.save();
+                            ctx.getSource().sendSuccess(
+                                () -> Component.literal("TTS enabled"),
+                                true
+                            );
+                            return 1;
+                        })
+                    )
+                    .then(Commands.literal("off")
+                        .executes(ctx -> {
+                            ModSettings.TTS_ENABLED.set(false);
+                            ModSettings.SPEC.save();
+                            ctx.getSource().sendSuccess(
+                                () -> Component.literal("TTS disabled"),
+                                true
+                            );
+                            return 1;
+                        })
+                    )
+                    .then(Commands.literal("speed")
+                        .then(Commands.argument("value", DoubleArgumentType.doubleArg(0.25, 4.0))
+                            .executes(ctx -> {
+                                double speed = DoubleArgumentType.getDouble(ctx, "value");
+                                ModSettings.TTS_SPEED.set(speed);
+                                ModSettings.SPEC.save();
+                                ctx.getSource().sendSuccess(
+                                    () -> Component.literal("TTS speed set to: " + speed),
+                                    true
+                                );
+                                return 1;
+                            })
+                        )
+                    )
+                    .then(Commands.literal("stop")
+                        .executes(ctx -> {
+                            Player2NpcLib.ttsStop();
+                            ctx.getSource().sendSuccess(
+                                () -> Component.literal("TTS playback stopped"),
+                                true
+                            );
+                            return 1;
+                        })
+                    )
+                    .executes(ctx -> {
+                        boolean enabled = ModSettings.TTS_ENABLED.get();
+                        double speed = ModSettings.TTS_SPEED.get();
+                        ctx.getSource().sendSuccess(
+                            () -> Component.literal("TTS: " + (enabled ? "enabled" : "disabled") + ", speed: " + speed),
+                            false
+                        );
+                        return 1;
+                    })
                 )
                 .then(Commands.literal("npc-chat")
                     .then(Commands.argument("colonyId", IntegerArgumentType.integer(1))

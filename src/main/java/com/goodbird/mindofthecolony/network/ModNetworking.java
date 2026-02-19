@@ -42,6 +42,13 @@ public class ModNetworking {
             BackgroundRequestMessage::handle
         );
 
+        // Server -> Client: TTS audio data for positional playback
+        registrar.playToClient(
+            TtsAudioMessage.TYPE,
+            TtsAudioMessage.STREAM_CODEC,
+            TtsAudioMessage::handle
+        );
+
         // Server -> Client: Background data response
         registrar.playToClient(
             BackgroundResponseMessage.TYPE,
