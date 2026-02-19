@@ -8,6 +8,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- NPC-to-NPC conversation system
+  - Citizens can have autonomous conversations with nearby colonists
+  - Conversations are turn-based with configurable max turns (default 4)
+  - Nearby players can "overhear" NPC conversations in chat
+  - Colored names in chat to distinguish speakers (consistent colors per conversation)
+  - Relationship tracking between citizens influences conversation topics
+  - Configurable conversation cooldowns, proximity radius, and timing via `NpcInteractionConfig`
+- Enhanced player context for NPC awareness
+  - NPCs know the player's colony relationship (owner, officer, friend, hostile, outsider)
+  - NPCs see what item the player is holding
+  - NPCs notice if the player is sneaking
+  - NPCs assess player's armor level (heavily armored, some armor, lightly armored)
+  - NPCs are aware of time of day (morning, afternoon, evening, night)
+  - NPCs track how many times they've spoken with each player
+- NPC work preferences system (builders/miners only)
+  - NPCs can express preferences for work categories (building, decoration, miner, plantation_field)
+  - NPCs can express preferences for work actions (BUILD, UPGRADE, REPAIR, REMOVE)
+  - NPCs can express preferences for specific building types (residence, barracks, farm, etc.)
+  - Preferences influence which work orders are assigned to builders
+  - Preferences persist across server restarts via NBT
+  - NPCs use tool functions (`set_work_preference`, `set_building_preference`) to express preferences
+- New network messages
+  - `NpcChatBroadcastMessage` for broadcasting NPC conversations to nearby players
+- New mixin
+  - `MixinWorkManager` for preference-based work order assignment
+- New configuration
+  - `NpcInteractionConfig` for NPC interaction parameters (conversation cooldowns, proximity, greeting chances)
+
+### Changed
+- Improved NPC chat display formatting (removed italics, added consistent colored names)
+- Enhanced `CitizenNpcBridge` with player context generation
+- System prompts for builders now include work preference instructions
+
+## [1.0.2] - 2026-02-06
+
+### Added
 - Make NPCs stop moving and look at players when player is in UI
 - Add background story and personality traits to citizens and visitor
 - Rework Traits to be more flexible and support both positive and negative modifiers configurable via `traits.json`

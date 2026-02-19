@@ -11,6 +11,7 @@ import com.goodbird.mindofthecolony.config.DiseaseConfig;
 import com.goodbird.mindofthecolony.effect.TemporaryModifier;
 import com.goodbird.mindofthecolony.effect.TemporaryTrait;
 import com.goodbird.mindofthecolony.mixin.IExtendedCitizenData;
+import com.goodbird.mindofthecolony.preference.WorkPreferences;
 import com.goodbird.mindofthecolony.mixin.IExtendedCitizenSkillHandler;
 import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.buildings.IBuilding;
@@ -73,6 +74,9 @@ public abstract class MixinCitizenData implements IExtendedCitizenData {
     @Unique
     private String mindOfTheColony$voiceId = null;
 
+    @Unique
+    private WorkPreferences mindOfTheColony$workPreferences = new WorkPreferences();
+
     @Inject(method = "deserializeNBT", at = @At("TAIL"), remap = false)
     private void onDeserializeNBT(HolderLookup.Provider provider, CompoundTag compound, CallbackInfo ci) {
         if (compound.contains("aiConversationHistory", Tag.TAG_COMPOUND)) {
@@ -107,6 +111,12 @@ public abstract class MixinCitizenData implements IExtendedCitizenData {
             for (int i = 0; i < traitList.size(); i++) {
                 this.mindOfTheColony$temporaryTraits.add(TemporaryTrait.fromNBT(traitList.getCompound(i)));
             }
+        }
+        // Load work preferences
+        if (compound.contains("workPreferences", Tag.TAG_COMPOUND)) {
+            this.mindOfTheColony$workPreferences = WorkPreferences.fromNBT(compound.getCompound("workPreferences"));
+        } else {
+            this.mindOfTheColony$workPreferences = new WorkPreferences();
         }
 
         // Set citizen reference on skill handler for trait bonuses
@@ -205,6 +215,10 @@ public abstract class MixinCitizenData implements IExtendedCitizenData {
                 traitList.add(trait.toNBT());
             }
             compound.put("temporaryTraits", traitList);
+        }
+        // Save work preferences
+        if (this.mindOfTheColony$workPreferences.hasPreferences()) {
+            compound.put("workPreferences", this.mindOfTheColony$workPreferences.toNBT());
         }
     }
 
@@ -546,5 +560,10 @@ public abstract class MixinCitizenData implements IExtendedCitizenData {
         this.mindOfTheColony$voiceId = voiceId;
         CitizenData self = (CitizenData)(Object)this;
         self.markDirty(0);
+    }
+
+    @Override
+    public WorkPreferences getWorkPreferences() {
+        return mindOfTheColony$workPreferences;
     }
 }

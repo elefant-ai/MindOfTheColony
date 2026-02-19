@@ -3,9 +3,14 @@ package com.goodbird.mindofthecolony.event;
 import com.goodbird.mindofthecolony.CitizenNpcManager;
 import com.goodbird.mindofthecolony.bridge.CitizenNpcBridge;
 import com.goodbird.mindofthecolony.config.ModSettings;
+import com.goodbird.mindofthecolony.interaction.NpcConversation;
+import com.goodbird.mindofthecolony.interaction.NpcConversationManager;
 import com.goodbird.mindofthecolony.mixin.IExtendedCitizenData;
 import com.goodbird.mindofthecolony.network.AIChatResponseMessage;
 import com.goodbird.mindofthecolony.network.TtsAudioMessage;
+import com.goodbird.mindofthecolony.preference.WorkPreferences;
+import com.minecolonies.api.colony.ICitizenData;
+import com.minecolonies.core.colony.CitizenData;
 import game.player2.npc.Player2NpcLib;
 import game.player2.npc.dto.TtsSpeakRequest;
 import game.player2.npc.event.NpcCommandEvent;
@@ -42,7 +47,22 @@ public class NpcEventHandler implements Player2EventListener {
         }
 
         int citizenId = bridge.getCitizenData().getId();
+        int colonyId = bridge.getCitizenData().getColony().getID();
         String citizenName = bridge.getCitizenData().getName();
+
+        // Check if this citizen is in an NPC-NPC conversation
+        NpcConversationManager convManager = NpcConversationManager.getIfExists(colonyId);
+        if (convManager != null) {
+            NpcConversation conversation = convManager.getConversation(citizenId);
+            LOGGER.info("Checking NPC-NPC routing for {}: convManager exists, conversation={}",
+                citizenName, conversation);
+            if (conversation != null && !conversation.isFinished()) {
+                // Route to NPC-NPC conversation manager
+                LOGGER.info("Routing NPC-NPC response from {} to conversation manager", citizenName);
+                convManager.handleResponse(conversation, citizenId, message);
+                return false;
+            }
+        }
 
         // Find the player chatting with this citizen
         ServerPlayer chattingPlayer = CitizenNpcManager.getInstance().getChattingPlayer(citizenId);
@@ -117,12 +137,72 @@ public class NpcEventHandler implements Player2EventListener {
                 String emote = event.getStringArgument("emote");
                 LOGGER.debug("Citizen {} emotes: {}", bridge.getCitizenData().getName(), emote);
             }
+            case "set_work_preference" -> {
+                handleSetWorkPreference(bridge.getCitizenData(), event);
+            }
+            case "set_building_preference" -> {
+                handleSetBuildingPreference(bridge.getCitizenData(), event);
+            }
             case "minecraft_command" -> {
                 LOGGER.debug("Citizen tried to execute command (disabled)");
             }
         }
 
         return false;
+    }
+
+    /**
+     * Handle set_work_preference function call from NPC.
+     */
+    private void handleSetWorkPreference(ICitizenData citizen, NpcCommandEvent event) {
+        if (!(citizen instanceof IExtendedCitizenData extData)) {
+            return;
+        }
+
+        String category = event.getStringArgument("category");
+        String action = event.getStringArgument("action");
+        int preference = event.getIntArgument("preference", 0);
+
+        WorkPreferences prefs = extData.getWorkPreferences();
+        if (action != null && !action.isEmpty()) {
+            // Set preference for specific category+action combination
+            prefs.setCategoryPreference(category, preference);
+            prefs.setActionPreference(action, preference);
+            LOGGER.info("Citizen {} set preference for {}:{} to {}",
+                citizen.getName(), category, action, preference);
+        } else {
+            prefs.setCategoryPreference(category, preference);
+            LOGGER.info("Citizen {} set preference for {} to {}",
+                citizen.getName(), category, preference);
+        }
+
+        // Mark dirty to persist
+        if (citizen instanceof CitizenData citizenData) {
+            citizenData.markDirty(0);
+        }
+    }
+
+    /**
+     * Handle set_building_preference function call from NPC.
+     */
+    private void handleSetBuildingPreference(ICitizenData citizen, NpcCommandEvent event) {
+        if (!(citizen instanceof IExtendedCitizenData extData)) {
+            return;
+        }
+
+        String buildingType = event.getStringArgument("building_type");
+        int preference = event.getIntArgument("preference", 0);
+
+        WorkPreferences prefs = extData.getWorkPreferences();
+        prefs.setBuildingTypePreference(buildingType, preference);
+
+        LOGGER.info("Citizen {} set building preference for {} to {}",
+            citizen.getName(), buildingType, preference);
+
+        // Mark dirty to persist
+        if (citizen instanceof CitizenData citizenData) {
+            citizenData.markDirty(0);
+        }
     }
 
     @Override

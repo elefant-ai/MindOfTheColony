@@ -7,7 +7,11 @@ import com.goodbird.mindofthecolony.background.TraitDefinition;
 import com.goodbird.mindofthecolony.background.TraitRegistry;
 import com.goodbird.mindofthecolony.bridge.CitizenNpcBridge;
 import com.goodbird.mindofthecolony.config.ModSettings;
+import com.goodbird.mindofthecolony.config.NpcInteractionConfig;
 import com.goodbird.mindofthecolony.effect.TemporaryTrait;
+import com.goodbird.mindofthecolony.interaction.CitizenRelationship;
+import com.goodbird.mindofthecolony.interaction.NpcConversation;
+import com.goodbird.mindofthecolony.interaction.NpcConversationManager;
 import game.player2.npc.Player2NpcLib;
 import com.goodbird.mindofthecolony.mixin.IExtendedCitizenData;
 import com.minecolonies.api.colony.ICitizenData;
@@ -287,6 +291,42 @@ public class MotcCommand {
                             false
                         );
                         return 1;
+                    })
+                )
+                .then(Commands.literal("npc-chat")
+                    .then(Commands.argument("colonyId", IntegerArgumentType.integer(1))
+                        .suggests(SUGGEST_COLONIES)
+                        .then(Commands.argument("citizenId1", IntegerArgumentType.integer())
+                            .suggests(SUGGEST_CITIZENS)
+                            .then(Commands.argument("citizenId2", IntegerArgumentType.integer())
+                                .suggests(SUGGEST_CITIZENS)
+                                .executes(ctx -> {
+                                    int colonyId = IntegerArgumentType.getInteger(ctx, "colonyId");
+                                    int citizenId1 = IntegerArgumentType.getInteger(ctx, "citizenId1");
+                                    int citizenId2 = IntegerArgumentType.getInteger(ctx, "citizenId2");
+                                    return forceNpcChat(ctx.getSource().getPlayer(), colonyId, citizenId1, citizenId2);
+                                })
+                            )
+                        )
+                    )
+                    .executes(ctx -> {
+                        ctx.getSource().sendFailure(Component.literal(
+                            "Usage: /motc npc-chat <colonyId> <citizenId1> <citizenId2>"));
+                        return 0;
+                    })
+                )
+                .then(Commands.literal("npc-status")
+                    .then(Commands.argument("colonyId", IntegerArgumentType.integer(1))
+                        .suggests(SUGGEST_COLONIES)
+                        .executes(ctx -> {
+                            int colonyId = IntegerArgumentType.getInteger(ctx, "colonyId");
+                            return showNpcInteractionStatus(ctx.getSource().getPlayer(), colonyId);
+                        })
+                    )
+                    .executes(ctx -> {
+                        ctx.getSource().sendFailure(Component.literal(
+                            "Usage: /motc npc-status <colonyId>"));
+                        return 0;
                     })
                 )
         );
@@ -744,6 +784,148 @@ public class MotcCommand {
 
         player.sendSystemMessage(Component.literal(
             "Summary: " + withBg + " with backgrounds, " + withoutBg + " missing"));
+
+        return 1;
+    }
+
+    private static int forceNpcChat(ServerPlayer player, int colonyId, int citizenId1, int citizenId2) {
+        if (player == null) {
+            return 0;
+        }
+
+        if (citizenId1 == citizenId2) {
+            player.sendSystemMessage(Component.literal("Cannot start conversation with self"));
+            return 0;
+        }
+
+        IColony colony = IColonyManager.getInstance().getColonyByDimension(colonyId, player.level().dimension());
+        if (colony == null) {
+            player.sendSystemMessage(Component.literal("Colony not found: " + colonyId));
+            return 0;
+        }
+
+        ICitizenData citizen1 = colony.getCitizenManager().getCivilian(citizenId1);
+        ICitizenData citizen2 = colony.getCitizenManager().getCivilian(citizenId2);
+
+        if (citizen1 == null) {
+            player.sendSystemMessage(Component.literal("Citizen not found: " + citizenId1));
+            return 0;
+        }
+        if (citizen2 == null) {
+            player.sendSystemMessage(Component.literal("Citizen not found: " + citizenId2));
+            return 0;
+        }
+
+        // Check if bridges are ready
+        CitizenNpcBridge bridge1 = CitizenNpcManager.getInstance().getBridge(citizenId1);
+        CitizenNpcBridge bridge2 = CitizenNpcManager.getInstance().getBridge(citizenId2);
+
+        if (bridge1 == null || !bridge1.isReady()) {
+            player.sendSystemMessage(Component.literal("NPC bridge not ready for: " + citizen1.getName()));
+            return 0;
+        }
+        if (bridge2 == null || !bridge2.isReady()) {
+            player.sendSystemMessage(Component.literal("NPC bridge not ready for: " + citizen2.getName()));
+            return 0;
+        }
+
+        // Check if NPC interaction is enabled
+        if (!NpcInteractionConfig.isEnabled()) {
+            player.sendSystemMessage(Component.literal("NPC interaction is disabled in config"));
+            return 0;
+        }
+
+        // Force start conversation
+        NpcConversationManager convManager = NpcConversationManager.getInstance(colonyId);
+        long currentTick = player.level().getGameTime();
+
+        // Check if either is already in conversation
+        if (convManager.isInConversation(citizenId1)) {
+            player.sendSystemMessage(Component.literal(citizen1.getName() + " is already in a conversation"));
+            return 0;
+        }
+        if (convManager.isInConversation(citizenId2)) {
+            player.sendSystemMessage(Component.literal(citizen2.getName() + " is already in a conversation"));
+            return 0;
+        }
+
+        NpcConversation conversation = convManager.startConversation(citizenId1, citizenId2, currentTick);
+        player.sendSystemMessage(Component.literal(
+            "Started NPC conversation between " + citizen1.getName() + " and " + citizen2.getName() +
+            "\nMax turns: " + conversation.getMaxTurns() +
+            "\nWatch your chat for their dialogue!"));
+
+        return 1;
+    }
+
+    private static int showNpcInteractionStatus(ServerPlayer player, int colonyId) {
+        if (player == null) {
+            return 0;
+        }
+
+        IColony colony = IColonyManager.getInstance().getColonyByDimension(colonyId, player.level().dimension());
+        if (colony == null) {
+            player.sendSystemMessage(Component.literal("Colony not found: " + colonyId));
+            return 0;
+        }
+
+        player.sendSystemMessage(Component.literal("=== NPC Interaction Status for Colony " + colonyId + " ==="));
+
+        // Config status
+        player.sendSystemMessage(Component.literal(
+            "Enabled: " + NpcInteractionConfig.isEnabled() +
+            " | Interaction radius: " + NpcInteractionConfig.getProximityConfig().interactionRadius +
+            " | Start chance: " + (NpcInteractionConfig.getConversationConfig().startChance * 100) + "%"));
+
+        // Conversation manager status
+        NpcConversationManager convManager = NpcConversationManager.getInstance(colonyId);
+
+        // Count citizens with ready bridges
+        int readyBridges = 0;
+        int totalCitizens = 0;
+        for (ICitizenData citizen : colony.getCitizenManager().getCitizens()) {
+            totalCitizens++;
+            CitizenNpcBridge bridge = CitizenNpcManager.getInstance().getBridge(citizen.getId());
+            if (bridge != null && bridge.isReady()) {
+                readyBridges++;
+            }
+        }
+        player.sendSystemMessage(Component.literal(
+            "Ready NPC bridges: " + readyBridges + "/" + totalCitizens));
+
+        // Check for nearby citizen pairs
+        double radius = NpcInteractionConfig.getProximityConfig().interactionRadius;
+        int nearbyPairs = 0;
+        var citizens = colony.getCitizenManager().getCitizens().stream().toList();
+        for (int i = 0; i < citizens.size(); i++) {
+            for (int j = i + 1; j < citizens.size(); j++) {
+                ICitizenData c1 = citizens.get(i);
+                ICitizenData c2 = citizens.get(j);
+                if (c1.getEntity().isPresent() && c2.getEntity().isPresent()) {
+                    double dist = c1.getEntity().get().distanceToSqr(c2.getEntity().get());
+                    if (dist <= radius * radius) {
+                        nearbyPairs++;
+                        // Check if they can converse
+                        boolean can1 = convManager.canStartConversation(c1.getId(), player.level().getGameTime());
+                        boolean can2 = convManager.canStartConversation(c2.getId(), player.level().getGameTime());
+                        CitizenRelationship rel = convManager.getRelationship(c1.getId(), c2.getId());
+                        String relInfo = rel != null ?
+                            " (talked " + rel.getConversationCount() + "x, " + rel.getRelationshipLevel() + ")" :
+                            " (strangers)";
+                        player.sendSystemMessage(Component.literal(
+                            "  Near: " + c1.getName() + " <-> " + c2.getName() +
+                            " (dist: " + String.format("%.1f", Math.sqrt(dist)) + ")" +
+                            (can1 && can2 ? " [CAN CHAT]" : " [on cooldown]") +
+                            relInfo));
+                    }
+                }
+            }
+        }
+        player.sendSystemMessage(Component.literal("Nearby citizen pairs: " + nearbyPairs));
+
+        // Active conversations info would need to be exposed from the manager
+        player.sendSystemMessage(Component.literal(
+            "\nUse /motc npc-chat <colonyId> <citizen1> <citizen2> to force a conversation"));
 
         return 1;
     }

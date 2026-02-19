@@ -6,6 +6,8 @@ import com.goodbird.mindofthecolony.bridge.CitizenNpcBridge;
 import com.goodbird.mindofthecolony.event.ColonyEventManager;
 import com.goodbird.mindofthecolony.event.evaluator.DiseaseOutbreakEvaluator;
 import com.goodbird.mindofthecolony.event.evaluator.WeatherEventEvaluator;
+import com.goodbird.mindofthecolony.interaction.NpcConversationManager;
+import com.goodbird.mindofthecolony.interaction.NpcProximityEvaluator;
 import com.goodbird.mindofthecolony.mixin.IExtendedCitizenData;
 import com.goodbird.mindofthecolony.voice.VoiceSelectionService;
 import com.minecolonies.api.colony.ICitizenData;
@@ -295,12 +297,17 @@ public class CitizenNpcManager {
         // Keep frozen citizens stopped and looking at the player
         tickFrozenCitizens();
 
-        // Tick event managers for all colonies
+        // Tick event managers and conversation managers for all colonies
         if (currentLevel != null) {
             long currentTick = currentLevel.getGameTime();
             for (IColony colony : IColonyManager.getInstance().getColonies(currentLevel)) {
+                // Tick colony event manager
                 ColonyEventManager eventManager = ColonyEventManager.getInstance(colony.getID());
                 eventManager.onTick(colony, currentLevel, currentTick);
+
+                // Tick NPC conversation manager
+                NpcConversationManager convManager = NpcConversationManager.getInstance(colony.getID());
+                convManager.onTick(colony, currentTick);
             }
         }
     }
@@ -343,6 +350,14 @@ public class CitizenNpcManager {
     }
 
     /**
+     * Gets the current server level reference.
+     */
+    @Nullable
+    public ServerLevel getCurrentLevel() {
+        return currentLevel;
+    }
+
+    /**
      * Initializes event managers for all colonies with evaluators.
      */
     public void initializeEventManagers(ServerLevel level) {
@@ -354,6 +369,7 @@ public class CitizenNpcManager {
             // Register evaluators
             eventManager.registerEvaluator(new DiseaseOutbreakEvaluator());
             eventManager.registerEvaluator(new WeatherEventEvaluator());
+            eventManager.registerEvaluator(new NpcProximityEvaluator());
 
             LOGGER.info("Initialized event manager for colony {} with evaluators", colony.getID());
         }
@@ -366,6 +382,9 @@ public class CitizenNpcManager {
         bridges.forEach((id, bridge) -> bridge.shutdown());
         bridges.clear();
         npcToCitizen.clear();
+
+        // Clear conversation managers
+        NpcConversationManager.clearAll();
 
         // Shutdown background generation service
         BackgroundGenerationService.getInstance().shutdown();

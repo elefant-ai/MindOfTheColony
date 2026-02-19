@@ -6,15 +6,22 @@ import com.goodbird.mindofthecolony.effect.TemporaryTrait;
 import com.goodbird.mindofthecolony.mixin.IExtendedCitizenData;
 import com.goodbird.mindofthecolony.status.AgentStatus;
 import com.minecolonies.api.colony.ICitizenData;
+import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.jobs.IJob;
+import com.minecolonies.api.colony.permissions.IPermissions;
+import com.minecolonies.api.colony.permissions.Rank;
 import game.player2.npc.Player2NpcLib;
+import game.player2.npc.api.NpcFunction;
+import net.minecraft.server.level.ServerPlayer;
 import game.player2.npc.api.NpcHandle;
 import net.minecraft.world.entity.player.Player;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -34,6 +41,9 @@ public class CitizenNpcBridge {
     private NpcHandle npcHandle;
     private CompletableFuture<UUID> pendingSpawn;
     private boolean ready = false;
+
+    // Track how many times this citizen has chatted with each player
+    private final Map<UUID, Integer> playerChatCounts = new HashMap<>();
 
     // Heartbeat tracking
     private static long lastHeartbeatTime = System.nanoTime();
@@ -59,6 +69,12 @@ public class CitizenNpcBridge {
             .name(citizenData.getName())
             .description(description)
             .systemPrompt(systemPrompt);
+
+        // Add work preference functions for builders
+        if (isBuilder()) {
+            builder.withFunction(createSetWorkPreferenceFunction())
+                   .withFunction(createSetBuildingPreferenceFunction());
+        }
 
         // If we have an existing NPC ID, resume from it to restore memories
         if (existingNpcId != null) {
@@ -99,6 +115,21 @@ public class CitizenNpcBridge {
             }
         }
 
+        // Add work preferences section for builders
+        String workPreferencesSection = "";
+        if (isBuilder()) {
+            workPreferencesSection = """
+
+            WORK PREFERENCES:
+            As a builder, you can express preferences about what work you'd like to do.
+            - Use set_work_preference to indicate if you prefer certain work categories (building, decoration, miner, plantation_field) or actions (BUILD, UPGRADE, REPAIR, REMOVE)
+            - Use set_building_preference to indicate if you prefer or dislike building specific structures (e.g., 'residence', 'barracks', 'farm')
+            - Only express preferences based on your personality and backstory - don't overuse these
+            - Preferences range from -10 (strongly avoid) to 10 (strongly prefer)
+            - Your preferences will influence which work orders you're assigned
+            """;
+        }
+
         return """
             You are %s, a %s living in the colony of %s in the world of Minecraft.
 
@@ -108,6 +139,7 @@ public class CitizenNpcBridge {
             - Current mood: %s
             - Happiness level: %.1f/10
 
+            %s
             %s
 
             GUIDELINES:
@@ -131,7 +163,8 @@ public class CitizenNpcBridge {
                 age,
                 getMoodDescription(happiness),
                 happiness,
-                backgroundSection
+                backgroundSection,
+                workPreferencesSection
             );
     }
 
@@ -178,15 +211,155 @@ public class CitizenNpcBridge {
     }
 
     /**
+     * Gets the number of times this citizen has chatted with a player.
+     */
+    public int getPlayerChatCount(UUID playerUuid) {
+        return playerChatCounts.getOrDefault(playerUuid, 0);
+    }
+
+    /**
+     * Increments the chat count for a player.
+     */
+    public void incrementPlayerChatCount(UUID playerUuid) {
+        playerChatCounts.merge(playerUuid, 1, Integer::sum);
+    }
+
+    /**
+     * Gets rich context about a player for NPC awareness.
+     * Includes colony relationship, what they're holding, armor, time of day, and chat history.
+     */
+    public String getPlayerContext(ServerPlayer player) {
+        StringBuilder context = new StringBuilder();
+        IColony colony = citizenData.getColony();
+        IPermissions perms = colony.getPermissions();
+
+        // Colony relationship
+        Rank rank = perms.getRank(player);
+        String relationship = getRelationshipString(rank, perms, player);
+        context.append("[").append(player.getName().getString())
+               .append(" is ").append(relationship).append("]\n");
+
+        // What player is holding
+        net.minecraft.world.item.ItemStack mainHand = player.getMainHandItem();
+        if (!mainHand.isEmpty()) {
+            String itemName = mainHand.getHoverName().getString();
+            context.append("[Player is holding: ").append(itemName).append("]\n");
+        }
+
+        // Sneaking
+        if (player.isShiftKeyDown()) {
+            context.append("[Player is sneaking]\n");
+        }
+
+        // Armor level
+        int armor = player.getArmorValue();
+        if (armor >= 15) {
+            context.append("[Player is heavily armored]\n");
+        } else if (armor >= 8) {
+            context.append("[Player is wearing some armor]\n");
+        } else if (armor > 0) {
+            context.append("[Player is lightly armored]\n");
+        }
+
+        // Time of day
+        long dayTime = player.level().getDayTime() % 24000;
+        String timeOfDay = getTimeOfDayString(dayTime);
+        context.append("[Time: ").append(timeOfDay).append("]\n");
+
+        // Chat history with this player
+        int chatCount = getPlayerChatCount(player.getUUID());
+        if (chatCount == 0) {
+            context.append("[You have never spoken to this player before]\n");
+        } else if (chatCount == 1) {
+            context.append("[You have spoken to this player once before]\n");
+        } else {
+            context.append("[You have spoken to this player ")
+                   .append(chatCount).append(" times before]\n");
+        }
+
+        return context.toString().trim();
+    }
+
+    private String getRelationshipString(Rank rank, IPermissions perms, ServerPlayer player) {
+        if (rank.getId() == IPermissions.OWNER_RANK_ID) {
+            return "the owner of this colony";
+        } else if (rank.getId() == IPermissions.OFFICER_RANK_ID) {
+            return "an officer of this colony";
+        } else if (rank.getId() == IPermissions.FRIEND_RANK_ID) {
+            return "a friend of this colony";
+        } else if (rank.getId() == IPermissions.HOSTILE_RANK_ID) {
+            return "hostile to this colony";
+        } else if (perms.isColonyMember(player)) {
+            return "a member of this colony";
+        } else {
+            return "an outsider (not part of this colony)";
+        }
+    }
+
+    private String getTimeOfDayString(long dayTime) {
+        if (dayTime < 6000) return "night";
+        if (dayTime < 12000) return "morning";
+        if (dayTime < 18000) return "afternoon";
+        return "evening";
+    }
+
+    /**
+     * Check if this citizen is a builder (can have work preferences).
+     */
+    private boolean isBuilder() {
+        IJob<?> job = citizenData.getJob();
+        if (job == null) return false;
+        String jobName = job.getJobRegistryEntry().getKey().getPath().toLowerCase();
+        return jobName.equals("builder") || jobName.equals("miner");
+    }
+
+    /**
+     * Create the set_work_preference NpcFunction.
+     */
+    private NpcFunction createSetWorkPreferenceFunction() {
+        return NpcFunction.builder("set_work_preference")
+            .description("Express a preference for certain types of work. Use this to influence which work orders you are assigned. Only call this if you have a strong opinion based on your personality.")
+            .addEnumParameter("category", "The work category to set preference for", true,
+                "building", "decoration", "miner", "plantation_field")
+            .addEnumParameter("action", "The work action type (optional)", false,
+                "BUILD", "UPGRADE", "REPAIR", "REMOVE")
+            .addIntParameter("preference", "Preference level from -10 (strongly avoid) to 10 (strongly prefer). 0 is neutral.", true)
+            .neverRespondWithMessage(true)
+            .build();
+    }
+
+    /**
+     * Create the set_building_preference NpcFunction.
+     */
+    private NpcFunction createSetBuildingPreferenceFunction() {
+        return NpcFunction.builder("set_building_preference")
+            .description("Express a preference for building specific structure types. Use this when you have strong opinions about particular buildings based on your personality.")
+            .addStringParameter("building_type", "The type of building (e.g., 'residence', 'barracks', 'farm', 'warehouse', 'library', 'tavern')", true)
+            .addIntParameter("preference", "Preference level from -10 (strongly avoid) to 10 (strongly prefer). 0 is neutral.", true)
+            .neverRespondWithMessage(true)
+            .build();
+    }
+
+    /**
      * Sends a player message to the NPC.
      */
     public void sendPlayerMessage(String playerName, String message) {
+        sendPlayerMessage(playerName, message, null);
+    }
+
+    /**
+     * Sends a player message to the NPC with additional player context.
+     */
+    public void sendPlayerMessage(String playerName, String message, @Nullable String playerContext) {
         if (!ready || npcHandle == null) {
             LOGGER.warn("NPC not ready for citizen: {}", citizenData.getName());
             return;
         }
 
         String context = getGameStateContext();
+        if (playerContext != null) {
+            context += "\n" + playerContext;
+        }
         npcHandle.chat(playerName, message, context);
     }
 
@@ -200,6 +373,20 @@ public class CitizenNpcBridge {
 
         String context = getGameStateContext();
         npcHandle.chat(playerName, message, context);
+    }
+
+    /**
+     * Sends a message to another NPC for NPC-to-NPC conversations.
+     * The colonyId is used for response routing.
+     */
+    public void sendNpcToNpcMessage(String listenerName, String prompt, int colonyId) {
+        if (!ready || npcHandle == null) {
+            return;
+        }
+
+        String context = getGameStateContext() +
+            "\n[You are having a conversation with " + listenerName + ", another colonist.]";
+        npcHandle.chat(listenerName, prompt, context);
     }
 
     /**
