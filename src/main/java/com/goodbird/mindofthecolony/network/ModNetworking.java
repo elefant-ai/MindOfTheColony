@@ -62,5 +62,12 @@ public class ModNetworking {
             EventDataResponseMessage.STREAM_CODEC,
             EventDataResponseMessage::handle
         );
+
+        // Server -> Client: NPC-to-NPC chat broadcast to nearby players
+        registrar.playToClient(
+            NpcChatBroadcastMessage.TYPE,
+            NpcChatBroadcastMessage.STREAM_CODEC,
+            NpcChatBroadcastMessage::handle
+        );
     }
 }

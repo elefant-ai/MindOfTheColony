@@ -3,6 +3,7 @@ package com.goodbird.mindofthecolony.mixin;
 import com.goodbird.mindofthecolony.background.CitizenBackground;
 import com.goodbird.mindofthecolony.effect.TemporaryModifier;
 import com.goodbird.mindofthecolony.effect.TemporaryTrait;
+import com.goodbird.mindofthecolony.preference.WorkPreferences;
 import net.minecraft.nbt.CompoundTag;
 
 import javax.annotation.Nullable;
@@ -40,4 +41,9 @@ public interface IExtendedCitizenData {
      * Check if this citizen has a specific temporary trait.
      */
     boolean hasTemporaryTrait(String traitId);
+
+    /**
+     * Get work preferences for this citizen (used by builders).
+     */
+    WorkPreferences getWorkPreferences();
 }

@@ -10,7 +10,8 @@
     "MixinVisitorManager",
     "MixinAbstractEntityAIBasic",
     "MixinCitizenHappinessHandler",
-    "MixinCitizenSkillHandler"
+    "MixinCitizenSkillHandler",
+    "MixinWorkManager"
   ],
   "client": [
     "MixinMainWindowCitizen",

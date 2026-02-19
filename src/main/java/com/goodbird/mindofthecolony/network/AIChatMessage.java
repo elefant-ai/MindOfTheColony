@@ -51,9 +51,13 @@ public record AIChatMessage(
                     // Start/continue conversation with this player
                     CitizenNpcManager.getInstance().startConversation(msg.citizenId(), player);
 
-                    // Send the message to the NPC
+                    // Increment chat count for this player
+                    bridge.incrementPlayerChatCount(player.getUUID());
+
+                    // Send the message to the NPC with player's colony relationship context
                     String playerName = player.getName().getString();
-                    bridge.sendPlayerMessage(playerName, msg.message());
+                    String playerContext = bridge.getPlayerContext(player);
+                    bridge.sendPlayerMessage(playerName, msg.message(), playerContext);
 
                     LOGGER.debug("Player {} sent message to citizen {}: {}",
                         playerName, msg.citizenId(), msg.message());

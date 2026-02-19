@@ -6,6 +6,7 @@ import com.goodbird.mindofthecolony.config.BackgroundConfigLoader;
 import com.goodbird.mindofthecolony.config.DiseaseConfig;
 import com.goodbird.mindofthecolony.config.EventConfig;
 import com.goodbird.mindofthecolony.config.ModSettings;
+import com.goodbird.mindofthecolony.config.NpcInteractionConfig;
 import com.goodbird.mindofthecolony.event.NpcEventHandler;
 import com.goodbird.mindofthecolony.network.ModNetworking;
 import game.player2.npc.Player2NpcLib;
@@ -53,6 +54,7 @@ public class MindOfTheColony {
         // Load JSON configs
         BackgroundConfigLoader.loadOrCreate();
         EventConfig.loadOrCreate();
+        NpcInteractionConfig.loadOrCreate();
 
         // Initialize java-npc library and register event listeners
         Player2NpcLib.initialize();
