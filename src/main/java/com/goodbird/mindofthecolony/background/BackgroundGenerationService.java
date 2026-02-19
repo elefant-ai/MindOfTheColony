@@ -54,7 +54,8 @@ public class BackgroundGenerationService {
      * @param gameId The game session ID
      * @return CompletableFuture that completes with the generated background
      */
-    public CompletableFuture<CitizenBackground> generateBackground(ICitizenData citizenData, String gameId) {
+    public CompletableFuture<CitizenBackground> generateBackground(Object citizenDataObj, String gameId) {
+        ICitizenData citizenData = (ICitizenData) citizenDataObj;
         // Listener is now registered at startup in MindOfTheColony.java
 
         String citizenName = citizenData.getName();

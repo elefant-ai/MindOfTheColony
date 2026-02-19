@@ -4,18 +4,8 @@
   "compatibilityLevel": "JAVA_21",
   "refmap": "mindofthecolony.refmap.json",
   "mixins": [
-    "MixinCitizenData",
-    "MixinCitizenManager",
-    "MixinCitizenDiseaseHandler",
-    "MixinVisitorManager",
-    "MixinAbstractEntityAIBasic",
-    "MixinCitizenHappinessHandler",
-    "MixinCitizenSkillHandler"
-  ],
-  "client": [
-    "MixinMainWindowCitizen",
-    "MixinAbstractWindowCitizen",
-    "MixinCitizenDataView"
+    "MixinMineColonies",
+    "MixinAbstractEntityAIBasic"
   ],
   "minVersion": "0.8"
 }

@@ -8,6 +8,8 @@ import com.goodbird.mindofthecolony.background.TraitRegistry;
 import com.goodbird.mindofthecolony.bridge.CitizenNpcBridge;
 import com.goodbird.mindofthecolony.config.ModSettings;
 import com.goodbird.mindofthecolony.effect.TemporaryTrait;
+import com.goodbird.mindofthecolony.god.ColonyGod;
+import com.goodbird.mindofthecolony.god.NpcColonyRegistry;
 import com.goodbird.mindofthecolony.mixin.IExtendedCitizenData;
 import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.ICivilianData;
@@ -19,11 +21,14 @@ import com.mojang.brigadier.suggestion.SuggestionProvider;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.Set;
 
 public class MotcCommand {
     private static final Logger LOGGER = LoggerFactory.getLogger(MotcCommand.class);
@@ -219,6 +224,89 @@ public class MotcCommand {
                         .executes(ctx -> {
                             int colonyId = IntegerArgumentType.getInteger(ctx, "colonyId");
                             return showStatus(ctx.getSource().getPlayer(), colonyId);
+                        })
+                    )
+                )
+                .then(Commands.literal("npc")
+                    .then(Commands.literal("add")
+                        .then(Commands.argument("colonyId", IntegerArgumentType.integer(1))
+                            .executes(ctx -> {
+                                int colonyId = IntegerArgumentType.getInteger(ctx, "colonyId");
+                                ServerLevel level = ctx.getSource().getLevel();
+
+                                IColony colony = IColonyManager.getInstance().getColonyByWorld(colonyId, level);
+                                if (colony == null) {
+                                    ctx.getSource().sendFailure(
+                                        Component.literal("Colony with ID " + colonyId + " not found in this dimension."));
+                                    return 0;
+                                }
+
+                                if (NpcColonyRegistry.isNpcColony(colonyId)) {
+                                    ctx.getSource().sendFailure(
+                                        Component.literal("Colony '" + colony.getName() + "' is already NPC-managed."));
+                                    return 0;
+                                }
+
+                                NpcColonyRegistry.register(colonyId);
+                                ColonyGod.getOrCreate(colony);
+
+                                ctx.getSource().sendSuccess(
+                                    () -> Component.literal("Colony '" + colony.getName()
+                                        + "' (ID " + colonyId + ") is now NPC-managed."),
+                                    true
+                                );
+                                return 1;
+                            })
+                        )
+                    )
+                    .then(Commands.literal("remove")
+                        .then(Commands.argument("colonyId", IntegerArgumentType.integer(1))
+                            .executes(ctx -> {
+                                int colonyId = IntegerArgumentType.getInteger(ctx, "colonyId");
+
+                                if (!NpcColonyRegistry.isNpcColony(colonyId)) {
+                                    ctx.getSource().sendFailure(
+                                        Component.literal("Colony " + colonyId + " is not NPC-managed."));
+                                    return 0;
+                                }
+
+                                NpcColonyRegistry.unregister(colonyId);
+                                ColonyGod.remove(colonyId);
+
+                                ctx.getSource().sendSuccess(
+                                    () -> Component.literal("Colony " + colonyId + " is no longer NPC-managed."),
+                                    true
+                                );
+                                return 1;
+                            })
+                        )
+                    )
+                    .then(Commands.literal("list")
+                        .executes(ctx -> {
+                            Set<Integer> npcColonies = NpcColonyRegistry.getAll();
+
+                            if (npcColonies.isEmpty()) {
+                                ctx.getSource().sendSuccess(
+                                    () -> Component.literal("No NPC-managed colonies."),
+                                    false
+                                );
+                                return 1;
+                            }
+
+                            StringBuilder sb = new StringBuilder("NPC-managed colonies:\n");
+                            ServerLevel level = ctx.getSource().getLevel();
+                            for (int id : npcColonies) {
+                                IColony colony = IColonyManager.getInstance().getColonyByWorld(id, level);
+                                String name = colony != null ? colony.getName() : "(not loaded)";
+                                sb.append("  - ID ").append(id).append(": ").append(name).append("\n");
+                            }
+
+                            String result = sb.toString().stripTrailing();
+                            ctx.getSource().sendSuccess(
+                                () -> Component.literal(result),
+                                false
+                            );
+                            return 1;
                         })
                     )
                 )

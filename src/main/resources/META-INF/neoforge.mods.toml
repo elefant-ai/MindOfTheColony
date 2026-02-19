@@ -13,6 +13,9 @@ description = '''${mod_description}'''
 [[mixins]]
 config = "mindofthecolony.mixins.json"
 
+[[mixins]]
+config = "mindofthecolony-generated.mixins.json"
+
 [[dependencies.${mod_id}]]
 modId = "neoforge"
 type = "required"

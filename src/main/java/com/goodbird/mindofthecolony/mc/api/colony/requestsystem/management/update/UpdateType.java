@@ -1,0 +1,10 @@
+package com.goodbird.mindofthecolony.mc.api.colony.requestsystem.management.update;
+
+/**
+ * Update types (reset, or onLoad).
+ */
+public enum UpdateType
+{
+    RESET,
+    DATA_LOAD
+}

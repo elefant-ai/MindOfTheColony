@@ -40,9 +40,9 @@ public class TabbedDebugWindow extends AbstractWindowSkeleton {
     private static Object mineColoniesNetwork = null;
     private static Method sendToServerMethod = null;
 
-    public TabbedDebugWindow(ICitizenDataView citizen) {
+    public TabbedDebugWindow(Object citizenObj) {
         super(WINDOW_RESOURCE);
-        this.citizen = citizen;
+        this.citizen = (ICitizenDataView) citizenObj;
         this.citizenId = citizen.getId();
         this.colonyId = citizen.getColonyId();
 

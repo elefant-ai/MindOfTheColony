@@ -7,7 +7,10 @@ import com.goodbird.mindofthecolony.config.DiseaseConfig;
 import com.goodbird.mindofthecolony.config.EventConfig;
 import com.goodbird.mindofthecolony.config.ModSettings;
 import com.goodbird.mindofthecolony.event.NpcEventHandler;
+import com.goodbird.mindofthecolony.god.ColonyGod;
+import com.goodbird.mindofthecolony.god.NpcColonyRegistry;
 import com.goodbird.mindofthecolony.network.ModNetworking;
+import com.goodbird.mindofthecolony.worldgen.NpcColonyWorldgen;
 import game.player2.npc.Player2NpcLib;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -41,6 +44,9 @@ public class MindOfTheColony {
         // Register command handler
         NeoForge.EVENT_BUS.register(MotcCommand.class);
 
+        // Register worldgen structure detection handler
+        NeoForge.EVENT_BUS.register(NpcColonyWorldgen.class);
+
         // Register TOML configs
         modContainer.registerConfig(ModConfig.Type.COMMON, ModSettings.SPEC, "mindofthecolony/settings.toml");
         modContainer.registerConfig(ModConfig.Type.COMMON, DiseaseConfig.SPEC, "mindofthecolony/diseases.toml");
@@ -53,6 +59,10 @@ public class MindOfTheColony {
         // Load JSON configs
         BackgroundConfigLoader.loadOrCreate();
         EventConfig.loadOrCreate();
+
+        // Load NPC colony registry and processed structure positions
+        NpcColonyRegistry.load();
+        NpcColonyWorldgen.loadProcessedPositions();
 
         // Initialize java-npc library and register event listeners
         Player2NpcLib.initialize();
@@ -79,11 +89,15 @@ public class MindOfTheColony {
     @SubscribeEvent
     public void onServerTick(ServerTickEvent.Post event) {
         CitizenNpcManager.getInstance().onServerTick();
+        ColonyGod.tickAll();
     }
 
     @SubscribeEvent
     public void onServerStopping(ServerStoppingEvent event) {
         LOGGER.info("Mind of the Colony is shutting down AI bridges.");
+        NpcColonyRegistry.save();
+        NpcColonyWorldgen.saveProcessedPositions();
+        ColonyGod.shutdownAll();
         CitizenNpcManager.getInstance().clearAllAIs();
     }
 }

@@ -1,0 +1,20 @@
+{
+  "required": true,
+  "package": "com.goodbird.mindofthecolony.mixin.generated",
+  "compatibilityLevel": "JAVA_21",
+  "refmap": "mindofthecolony.refmap.json",
+  "mixins": [
+    "Generated_core_colony_CitizenData",
+    "Generated_core_colony_managers_CitizenManager",
+    "Generated_core_entity_citizen_citizenhandlers_CitizenDiseaseHandler",
+    "Generated_core_entity_citizen_citizenhandlers_CitizenHappinessHandler",
+    "Generated_core_entity_citizen_citizenhandlers_CitizenSkillHandler"
+  ],
+  "client": [
+    "Generated_core_colony_CitizenDataView",
+    "Generated_core_client_gui_citizen_MainWindowCitizen",
+    "Generated_core_client_gui_citizen_AbstractWindowCitizen",
+    "Generated_core_colony_managers_VisitorManager"
+  ],
+  "minVersion": "0.8"
+}

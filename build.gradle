@@ -2,6 +2,7 @@ plugins {
     id 'java-library'
     id 'maven-publish'
     id 'net.neoforged.gradle.userdev' version '7.1.20'
+    id 'mindofthecolony.mixin-generator'
 }
 
 version = mod_version
@@ -12,6 +13,8 @@ base {
 }
 
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+minecraft.accessTransformers.file 'src/main/resources/META-INF/accesstransformer.cfg'
 
 runs {
     configureEach {
@@ -36,6 +39,16 @@ runs {
 
 sourceSets.main.resources { srcDir 'src/generated/resources' }
 
+// Include generated mixin sources in main compilation
+sourceSets.main.java {
+    srcDir 'src/generated/mixins/java'
+}
+
+// Wire mixin generation before compilation
+tasks.named('compileJava') {
+    dependsOn 'generateForkMixins'
+}
+
 configurations {
     runtimeClasspath.extendsFrom localRuntime
 }
@@ -52,6 +65,10 @@ repositories {
     maven {
         name = 'Modrinth'
         url = 'https://api.modrinth.com/maven'
+    }
+    maven {
+        name = 'BlameJared'
+        url = 'https://maven.blamejared.com'
     }
     mavenCentral()
 }
@@ -78,12 +95,23 @@ dependencies {
     compileOnly "com.ldtteam:structurize:${structurize_version}"
     compileOnly "com.ldtteam:blockui:${blockui_version}"
     compileOnly "com.ldtteam:multipiston:${multipiston_version}"
+    compileOnly "com.ldtteam:domum-ornamentum:${domum_ornamentum_version}"
+
+    // JEI API (needed to compile fork's JEI integration code)
+    compileOnly "mezz.jei:jei-1.21.1-neoforge-api:19.19.6.235"
+
+    // JourneyMap API (needed to compile fork's JourneyMap compatibility code)
+    compileOnly group: 'info.journeymap', name: 'journeymap-api-neoforge', version: '2.0.0-1.21.1-SNAPSHOT', changing: true
+
+    // Dynamic Trees (needed to compile fork's Dynamic Trees compatibility code)
+    compileOnly "maven.modrinth:dynamictrees:1.5.0-BETA07"
 
     // Runtime dependencies for testing
     localRuntime "com.ldtteam:minecolonies:${minecolonies_version}"
     localRuntime "com.ldtteam:structurize:${structurize_version}"
     localRuntime "com.ldtteam:blockui:${blockui_version}"
     localRuntime "com.ldtteam:multipiston:${multipiston_version}"
+    localRuntime "com.ldtteam:domum-ornamentum:${domum_ornamentum_version}"
 
     // Jade (tooltip/overlay mod for testing)
     localRuntime "maven.modrinth:jade:15.10.3+neoforge"
@@ -118,7 +146,7 @@ jar {
             'Implementation-Version'  : project.version,
             'Implementation-Vendor'   : mod_authors,
             'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ"),
-            'MixinConfigs'            : 'mindofthecolony.mixins.json'
+            'MixinConfigs'            : 'mindofthecolony.mixins.json,mindofthecolony-generated.mixins.json'
         ])
     }
 }

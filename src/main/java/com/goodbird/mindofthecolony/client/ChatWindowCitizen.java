@@ -35,14 +35,15 @@ public class ChatWindowCitizen extends BOWindow implements ButtonHandler {
     private static final String TITLE_ID = "title";
 
     private final ICitizenDataView citizen;
+    // Constructor accepts Object to bridge fork types (compile-time) and MC types (runtime)
     private final Consumer<ClientChatHandler.ChatEntry> messageListener = this::onMessageReceived;
     private Text chatHistoryText;
     private ScrollingGroup chatScroll;
     private int lastHistorySize = 0;
 
-    public ChatWindowCitizen(ICitizenDataView citizen) {
+    public ChatWindowCitizen(Object citizenObj) {
         super(ResourceLocation.fromNamespaceAndPath("mindofthecolony", "gui/chatwindow.xml"));
-        this.citizen = citizen;
+        this.citizen = (ICitizenDataView) citizenObj;
     }
 
     @Override

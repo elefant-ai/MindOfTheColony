@@ -70,8 +70,10 @@ public class CitizenNpcManager {
 
     /**
      * Called when a citizen is loaded into the world.
+     * Accepts Object to bridge between fork types (compile-time) and MineColonies types (runtime).
      */
-    public void onCitizenLoad(ICitizenData citizenData) {
+    public void onCitizenLoad(Object citizenDataObj) {
+        ICitizenData citizenData = (ICitizenData) citizenDataObj;
         if (citizenData == null) {
             return;
         }

@@ -7,19 +7,12 @@ pluginManagement {
 
 plugins {
     id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
-    id 'me.champeau.includegit' version '0.3.2'
 }
 
-gitRepositories {
-    useGitCli = true
-    include('java-npc') {
-        uri = 'https://github.com/elefant-ai/java-npc.git'
-        branch = 'main'
-        includeBuild {
-            dependencySubstitution {
-                substitute module('game.player2.npc:player2npc') using project(':')
-            }
-        }
+// Local java-npc build (feature/tts branch with TTS support)
+includeBuild('../java-npc') {
+    dependencySubstitution {
+        substitute module('game.player2.npc:player2npc') using project(':')
     }
 }
 
