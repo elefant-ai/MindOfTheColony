@@ -94,9 +94,7 @@ public class ClientAudioPlayer {
             gainControl.setValue(dB);
         }
 
-        clip.start();
-
-        // Wait for playback to finish, then clean up
+        // Register listener before start to catch STOP events on short clips
         clip.addLineListener(event -> {
             if (event.getType() == LineEvent.Type.STOP) {
                 clip.close();
@@ -105,6 +103,8 @@ public class ClientAudioPlayer {
                 }
             }
         });
+
+        clip.start();
     }
 
     private static float calculateVolume(double distance) {

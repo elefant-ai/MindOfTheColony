@@ -38,7 +38,7 @@ public class VoiceSelectionService {
     // Prevent duplicate in-flight requests per citizen
     private final Set<Integer> inFlightRequests = ConcurrentHashMap.newKeySet();
 
-    private HttpClient httpClient;
+    private volatile HttpClient httpClient;
 
     private VoiceSelectionService() {}
 
